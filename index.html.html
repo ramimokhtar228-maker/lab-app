@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>معامل رامي مختار | نظام الاستبيانات والمتابعة</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5',
+              500: '#dc2626', 600: '#b91c1c', 700: '#991b1b', 800: '#7f1d1d', 900: '#450a0a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f8fafc; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card { background: #fff; border-radius: 1rem; border: 1px solid #fecaca; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .btn-brand { background: #7f1d1d; color: #fff; }
+    .btn-brand:hover { background: #991b1b; }
+    .btn-green { background: #16a34a; color: #fff; }
+    .btn-green:hover { background: #15803d; }
+    input, textarea, select { transition: border-color .15s; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #b91c1c; box-shadow: 0 0 0 3px rgba(185,28,28,.15); }
+    #view-form input[type="radio"], #view-form input[type="checkbox"] { pointer-events: auto; min-width: 20px; min-height: 20px; }
+    #view-form label { -webkit-tap-highlight-color: rgba(127,29,29,0.15); }
+    #view-form button { pointer-events: auto; cursor: pointer; }
+    #modal-add-patient.hidden { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+  <header id="admin-header" class="bg-brand-800 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+      <div class="flex items-center gap-3">
+        <div id="header-logo-box" class="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center font-bold text-xl border-2 border-white/30 overflow-hidden">ر</div>
+        <div>
+          <h1 id="header-lab-name" class="text-lg font-bold">معامل رامي مختار</h1>
+          <p class="text-brand-100 text-xs opacity-90">نظام الاستبيانات • المتابعة • الاستشارات</p>
+        </div>
+      </div>
+      <nav class="flex gap-2 text-sm flex-wrap items-center">
+        <button onclick="showView('dashboard')" class="bg-brand-700 hover:bg-brand-600 px-3 py-1.5 rounded-lg">الرئيسية</button>
+        <button onclick="showView('patients')" class="bg-brand-700 hover:bg-brand-600 px-3 py-1.5 rounded-lg">المرضى</button>
+        <button onclick="showView('questionnaires')" class="bg-brand-700 hover:bg-brand-600 px-3 py-1.5 rounded-lg">الاستبيانات</button>
+        <button onclick="showView('settings')" class="bg-brand-700 hover:bg-brand-600 px-3 py-1.5 rounded-lg relative">
+          الإعدادات
+          <span id="cloud-status-dot" class="absolute -top-1 -left-1 w-3 h-3 rounded-full border border-white/50"></span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+
+    <div id="view-dashboard" class="view active space-y-6">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="card p-4"><p class="text-slate-500 text-xs mb-1">المرضى</p><p id="stat-patients" class="text-2xl font-bold text-brand-700">0</p></div>
+        <div class="card p-4"><p class="text-slate-500 text-xs mb-1">حالات جديدة</p><p id="stat-new" class="text-2xl font-bold text-amber-600">0</p></div>
+        <div class="card p-4"><p class="text-slate-500 text-xs mb-1">الردود</p><p id="stat-responses" class="text-2xl font-bold text-sky-600">0</p></div>
+        <div class="card p-4"><p class="text-slate-500 text-xs mb-1">تقييمات</p><p id="stat-feedback" class="text-2xl font-bold text-emerald-600">0</p></div>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button onclick="openAddPatientModal()" class="btn-brand px-5 py-2.5 rounded-xl font-medium shadow-sm">+ إضافة مريض</button>
+        <button onclick="showView('questionnaires')" class="bg-white border-2 border-brand-600 text-brand-700 px-5 py-2.5 rounded-xl font-medium hover:bg-brand-50">الاستبيانات</button>
+      </div>
+      <section>
+        <h2 class="text-lg font-bold mb-3 text-brand-800">آخر الردود الواردة</h2>
+        <div id="recent-responses" class="space-y-3"></div>
+      </section>
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
+        <strong>ملاحظة تقنية:</strong> لتعمل المزامنة بين هاتف المريض وجهازك: 1) ارفع هذا الملف على أي استضافة مجانية (Netlify / GitHub Pages). 2) أنشئ مشروع Supabase مجاني ونفّذ جداول SQL. 3) الصق الرابط والمفتاح من الإعدادات واضغط اختبار الاتصال.
+      </div>
+    </div>
+
+    <div id="view-patients" class="view">
+      <div class="mb-4">
+        <input id="search-patients" type="text" placeholder="بحث بالاسم أو رقم الهاتف..." class="w-full max-w-md border border-brand-200 rounded-xl px-4 py-2.5" oninput="renderPatientsList()" />
+      </div>
+      <div id="patients-list" class="space-y-3"></div>
+    </div>
+
+    <div id="view-patient-detail" class="view space-y-5">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 id="pd-name" class="text-xl font-bold text-brand-800"></h2>
+          <p id="pd-phone" class="text-slate-500 text-sm"></p>
+        </div>
+        <button onclick="showView('patients')" class="bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-lg text-sm">رجوع</button>
+      </div>
+      <section class="card p-5 space-y-4">
+        <h3 class="font-bold text-brand-800 text-lg">إرسال استبيان للمريض عبر واتساب</h3>
+        <p class="text-sm text-slate-500">اللينك يفتح <strong>الاستبيان فقط</strong> عند المريض بدون أي شاشات إدارية.</p>
+        <select id="pd-select-q" class="w-full border border-brand-200 rounded-xl px-3 py-2.5"></select>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="sendWhatsApp()" class="btn-green px-5 py-2.5 rounded-xl text-sm font-medium shadow-sm">إرسال عبر واتساب</button>
+          <button onclick="generateLinkOnly()" class="bg-slate-700 text-white px-4 py-2.5 rounded-xl text-sm hover:bg-slate-600">نسخ اللينك فقط</button>
+        </div>
+        <div id="pd-link-box" class="hidden bg-brand-50 border border-brand-200 rounded-xl p-3 text-sm break-all"></div>
+      </section>
+      <section class="card p-5 space-y-3">
+        <h3 class="font-bold text-brand-800">ملاحظاتك الطبية على المريض</h3>
+        <textarea id="pd-notes" rows="3" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="ملاحظات عامة، تحاليل مطلوبة، متابعة..."></textarea>
+        <button onclick="savePatientNotes()" class="btn-brand px-4 py-2 rounded-xl text-sm">حفظ الملاحظات</button>
+      </section>
+      <section>
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h3 class="font-bold text-brand-800">مجلد المريض — كل الردود والسجلات</h3>
+          <select id="pd-filter-q" onchange="renderPatientResponses()" class="border border-brand-200 rounded-lg px-2 py-1.5 text-sm"></select>
+        </div>
+        <div id="pd-responses" class="space-y-3"></div>
+      </section>
+    </div>
+
+    <div id="view-response" class="view space-y-5">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 class="text-xl font-bold text-brand-800">تفاصيل الرد</h2>
+          <p id="rd-meta" class="text-slate-500 text-sm"></p>
+        </div>
+        <button id="rd-back-btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-lg text-sm">رجوع للمريض</button>
+      </div>
+      <p id="rd-date" class="text-sm text-slate-500"></p>
+      <section class="card p-5">
+        <h3 class="font-bold text-brand-800 mb-4">إجابات المريض</h3>
+        <div id="rd-answers" class="space-y-3"></div>
+      </section>
+      <section class="card p-5 space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-bold text-brand-800">نتائج التحاليل الفعلية (بعد ظهورها من المعمل)</h3>
+          <div class="flex flex-wrap gap-2">
+            <label class="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-emerald-600 cursor-pointer">
+              📄 رفع PDF نتائج
+              <input type="file" id="lab-pdf-input" accept="application/pdf,.pdf" class="hidden" onchange="handleLabPdfUpload(event)" />
+            </label>
+            <button onclick="addLabResultRow()" class="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-slate-600">+ إضافة تحليل يدوياً</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">ارفع ملف PDF لنتائج التحاليل (من المعمل أو أي مصدر) وسيتم استخراج النتائج تلقائياً ودمجها مع أعراض المريض من الاستبيان. يمكنك أيضاً الإدخال اليدوي. النتائج تُدمج في التحليل الشامل وتظهر في تقرير الـ PDF النهائي.</p>
+        <div id="lab-pdf-status" class="hidden text-sm rounded-lg px-3 py-2"></div>
+        <div id="rd-lab-results" class="space-y-2"></div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="saveLabResults()" class="btn-brand px-4 py-2 rounded-xl text-sm">حفظ نتائج التحاليل</button>
+          <button onclick="clearLabResults()" class="bg-white border border-red-300 text-red-700 px-4 py-2 rounded-xl text-sm hover:bg-red-50">مسح كل النتائج</button>
+        </div>
+      </section>
+      <section class="card p-5 space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-bold text-brand-800">التحليل الطبي الشامل (أعراض + نتائج تحاليل)</h3>
+          <button id="rd-ai-btn" onclick="runAI()" class="btn-brand px-4 py-2 rounded-xl text-sm">تشغيل التحليل الشامل</button>
+        </div>
+        <div id="rd-ai-result" class="hidden bg-brand-50 border border-brand-200 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap"></div>
+        <p id="rd-ai-hint" class="text-slate-500 text-sm">يدمج أعراض المريض مع نتائج التحاليل المسجلة فوق (لو موجودة) ويقترح تفسيراً طبياً كاملاً: حالة المريض، نظام غذائي، تعليمات دوائية عامة، نصائح، ومواعيد تحاليل المتابعة. يمكنك تعديل النتيجة ثم إنشاء PDF للمريض.</p>
+      </section>
+      <section class="card p-5 space-y-3">
+        <h3 class="font-bold text-brand-800">رأيك الطبي + التحاليل التي تحددها أنت</h3>
+        <textarea id="rd-notes" rows="5" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="اكتب التحاليل المطلوبة، رأيك الطبي، أي تعليمات للمريض..."></textarea>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="saveResponseNotes()" class="btn-brand px-4 py-2 rounded-xl text-sm">حفظ الرأي الطبي</button>
+          <button onclick="generatePatientPDF()" class="bg-sky-700 text-white px-4 py-2 rounded-xl text-sm hover:bg-sky-600">إنشاء PDF للمريض</button>
+          <button onclick="sendReportWhatsApp()" class="btn-green px-4 py-2 rounded-xl text-sm">إرسال ملخص التقرير عبر واتساب</button>
+        </div>
+        <p class="text-xs text-slate-500">لو واجهت مشكلة في PDF على جهاز معيّن، استخدم زر واتساب لإرسال نفس البيانات كنص مباشرة للمريض.</p>
+      </section>
+    </div>
+
+    <div id="view-questionnaires" class="view space-y-4">
+      <p class="text-slate-600 text-sm">اختر الاستبيان من صفحة المريض ثم أرسله عبر واتساب.</p>
+      <div id="q-list" class="space-y-4"></div>
+    </div>
+
+    <div id="view-settings" class="view space-y-5">
+      <h2 class="text-xl font-bold text-brand-800">إعدادات المعمل والطبيب</h2>
+      <p class="text-sm text-slate-500">تظهر هذه البيانات في ملف PDF المرسل للمريض.</p>
+      <div class="card p-5 space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">شعار المعمل (يظهر في الهيدر وملف PDF)</label>
+          <div class="flex items-center gap-3">
+            <div id="cfg-logo-preview" class="w-14 h-14 rounded-xl bg-brand-50 border border-brand-200 flex items-center justify-center overflow-hidden text-brand-700 font-bold text-xl shrink-0">ر</div>
+            <input id="cfg-logo-file" type="file" accept="image/*" class="text-sm flex-1" onchange="onLogoFileChange(event)" />
+            <button type="button" onclick="removeLogo()" class="text-xs text-red-600 hover:underline shrink-0">إزالة</button>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">يُفضّل صورة مربعة (PNG) بحجم صغير لتحميل أسرع.</p>
+        </div>
+        <div><label class="block text-sm font-medium mb-1">اسم المعمل</label>
+          <input id="cfg-lab-name" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" value="معامل رامي مختار" /></div>
+        <div><label class="block text-sm font-medium mb-1">عنوان / فروع المعمل</label>
+          <input id="cfg-lab-address" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="العنوان..." /></div>
+        <div><label class="block text-sm font-medium mb-1">هاتف المعمل</label>
+          <input id="cfg-lab-phone" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="01xxxxxxxxx" /></div>
+        <div><label class="block text-sm font-medium mb-1">اسم الطبيب المختص بالاستشارات</label>
+          <input id="cfg-doctor-name" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="د. ..." /></div>
+        <div><label class="block text-sm font-medium mb-1">تخصص الطبيب</label>
+          <input id="cfg-doctor-spec" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="باطنة / تحاليل / ..." /></div>
+        <div class="border-t border-brand-100 pt-4 mt-2">
+          <h3 class="font-bold text-brand-800 mb-2">ربط السحابة (Supabase) — لمزامنة البيانات بين الأجهزة</h3>
+          <p class="text-xs text-emerald-700 mb-3">✅ البرنامج متصل تلقائياً بمشروع سحابي افتراضي مُثبّت مسبقاً — أي جهاز يفتح هذا البرنامج (جهازك أو جهاز المريض) يتصل بنفس القاعدة تلقائياً بدون أي إعداد. اترك الحقول التالية فارغة للاستمرار في استخدام هذا المشروع، أو أدخل بيانات مشروعك الخاص لو أردت تغييره.</p>
+        </div>
+        <div><label class="block text-sm font-medium mb-1">Supabase URL (اختياري لتغيير المشروع الافتراضي)</label>
+          <input id="cfg-supabase-url" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="https://xxxxx.supabase.co" dir="ltr" /></div>
+        <div><label class="block text-sm font-medium mb-1">Supabase anon key (اختياري)</label>
+          <input id="cfg-supabase-key" type="password" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="eyJhbGci..." dir="ltr" /></div>
+        <div><label class="block text-sm font-medium mb-1">مفتاح AI حقيقي (Gemini) — اختياري</label>
+          <input id="cfg-ai-key" type="password" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="اتركه فارغاً للتحليل المدمج" />
+          <p class="text-xs text-slate-400 mt-1">من Google AI Studio يمكنك الحصول على مفتاح Gemini مجاني.</p>
+          <p class="text-xs text-amber-700 mt-1">⚠️ المفتاح يُحفظ على هذا الجهاز فقط. لا تستخدمه على جهاز مشترك مع آخرين، ولا تشارك رابط البرنامج مع المفتاح مضمّناً فيه.</p></div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="saveSettings()" class="btn-brand px-5 py-2.5 rounded-xl">حفظ الإعدادات</button>
+          <button onclick="testSupabase()" class="bg-sky-700 text-white px-4 py-2.5 rounded-xl text-sm hover:bg-sky-600">اختبار الاتصال</button>
+        </div>
+        <div class="border-t border-brand-100 pt-4 mt-2">
+          <h3 class="font-bold text-brand-800 mb-2">نسخة احتياطية للبيانات</h3>
+          <p class="text-xs text-slate-500 mb-3">مهم جداً: البيانات محفوظة على هذا الجهاز فقط ما لم تُفعّل السحابة أعلاه. خذ نسخة احتياطية بشكل دوري لتجنب فقدان البيانات.</p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <button onclick="exportBackup()" class="bg-slate-700 text-white px-4 py-2.5 rounded-xl text-sm hover:bg-slate-600">⬇ تصدير نسخة احتياطية</button>
+            <label class="bg-white border-2 border-brand-600 text-brand-700 px-4 py-2.5 rounded-xl text-sm hover:bg-brand-50 cursor-pointer">
+              ⬆ استيراد نسخة احتياطية
+              <input id="restore-file-input" type="file" accept="application/json" class="hidden" onchange="importBackup(event)" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-form" class="view">
+      <div class="max-w-xl mx-auto">
+        <div class="card overflow-hidden shadow-md">
+          <div class="bg-brand-800 text-white px-6 py-5">
+            <div class="flex items-center gap-3 mb-2">
+              <div id="form-logo-box" class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold border border-white/30 overflow-hidden">ر</div>
+              <span class="font-bold text-lg" id="form-lab-name">معامل رامي مختار</span>
+            </div>
+            <h1 id="form-title" class="text-xl font-bold mt-1"></h1>
+            <p id="form-desc" class="text-brand-100 text-sm mt-1"></p>
+            <p id="form-patient" class="text-brand-200 text-sm mt-2"></p>
+          </div>
+          <form id="patient-form" class="p-6 space-y-5" onsubmit="submitForm(event)"></form>
+        </div>
+        <p class="text-center text-xs text-slate-400 mt-4">بياناتك سرية وتُستخدم فقط لمتابعة حالتك داخل المعمل.</p>
+      </div>
+    </div>
+
+    <div id="view-form-success" class="view">
+      <div class="min-h-[70vh] flex items-center justify-center">
+        <div class="card p-10 max-w-md text-center space-y-4 shadow-lg">
+          <div class="text-5xl">✅</div>
+          <h1 class="text-xl font-bold text-brand-700">تم إرسال إجاباتك بنجاح</h1>
+          <p class="text-slate-700 leading-relaxed">شكراً لثقتكم بمعامل رامي مختار.</p>
+          <p class="text-brand-800 font-medium leading-relaxed">سيتم التواصل مع حضرتك خلال 24 ساعة إن شاء الله.</p>
+          <p class="text-sm text-slate-500">بياناتك سرية وتُستخدم فقط لمتابعة حالتك داخل المعمل.</p>
+          <div id="form-sync-status" class="hidden text-xs text-right bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-500" dir="rtl"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="modal-add-patient" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <h2 class="text-lg font-bold text-brand-800">إضافة مريض جديد</h2>
+      <div><label class="block text-sm mb-1">الاسم *</label>
+        <input id="new-patient-name" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="اسم المريض" /></div>
+      <div><label class="block text-sm mb-1">رقم الواتساب *</label>
+        <input id="new-patient-phone" type="text" class="w-full border border-brand-200 rounded-xl px-3 py-2" placeholder="01xxxxxxxxx" /></div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="addPatient()" class="flex-1 btn-brand py-2.5 rounded-xl">حفظ</button>
+        <button onclick="closeAddPatientModal()" class="flex-1 bg-slate-100 py-2.5 rounded-xl hover:bg-slate-200">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const STORAGE_KEY = "ramy_lab_pro_v3";
+// بيانات مشروع Supabase الخاص بالمعمل — مثبّتة هنا حتى يتصل أي جهاز (جهازك أو جهاز المريض)
+// تلقائياً بنفس قاعدة البيانات المشتركة، من غير ما يحتاج أحد يدخل الإعدادات يدوياً.
+// المفتاح هنا هو anon/public key وهو مخصص للعمل من المتصفح مباشرة (محمي بصلاحيات RLS في Supabase).
+const BUILTIN_SUPABASE_URL = "https://pqoyvufzjojlatifqqdo.supabase.co";
+const BUILTIN_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxb3l2dWZ6am9qbGF0aWZxcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3Nzg0NDMsImV4cCI6MjEwMzM1NDQ0M30.8bPQSg6IavtJ4Fnf3SX9SEX2GY0FK-4_HOaY1vPJYtI";
+
+const DEFAULT_SETTINGS = { labName: "معامل رامي مختار", labAddress: "", labPhone: "", doctorName: "", doctorSpec: "", aiKey: "", supabaseUrl: "", supabaseKey: "", labLogo: "" };
+
+const TEMPLATES = [
+  { id: "tpl-checkup", title: "استبيان الفحص الشامل / التحاليل الروتينية", description: "لمعرفة حالة المريض قبل باقة الفحص الشامل", category: "medical",
+    questions: [
+      { id: "c1", label: "الاسم الكامل", type: "text", required: true },
+      { id: "c2", label: "العمر", type: "text", required: true },
+      { id: "c3", label: "الجنس", type: "single", options: ["ذكر", "أنثى"], required: true },
+      { id: "c4", label: "الوزن التقريبي (كجم)", type: "text" },
+      { id: "c5", label: "الطول التقريبي (سم)", type: "text" },
+      { id: "c6", label: "أمراض مزمنة", type: "multiple", options: ["سكري", "ضغط دم", "أمراض قلب", "كلى", "كبد", "غدة درقية", "أنيميا", "لا يوجد"] },
+      { id: "c7", label: "أدوية منتظمة (إن وجدت)", type: "textarea" },
+      { id: "c8", label: "حساسية من أدوية؟", type: "yesno", required: true },
+      { id: "c9", label: "إن وجدت اذكرها", type: "text" },
+      { id: "c10", label: "هل أنت صائم الآن؟", type: "yesno", required: true },
+      { id: "c11", label: "مدة الصيام (ساعات)", type: "text" },
+      { id: "c12", label: "التدخين", type: "single", options: ["نعم", "لا", "أقلعت"] },
+      { id: "c13", label: "أعراض حالية", type: "textarea" },
+      { id: "c14", label: "آخر فحص شامل تقريباً", type: "text" },
+      { id: "c15", label: "ملاحظات إضافية", type: "textarea" }
+    ]},
+  { id: "tpl-symptoms", title: "استبيان حسب الأعراض (لاقتراح التحاليل)", description: "بناءً على الأعراض يُقترح التحاليل — وأنت تحدد النهائي", category: "symptoms",
+    questions: [
+      { id: "s1", label: "الاسم", type: "text", required: true },
+      { id: "s2", label: "العمر", type: "text", required: true },
+      { id: "s3", label: "الجنس", type: "single", options: ["ذكر", "أنثى"], required: true },
+      { id: "s4", label: "الشكوى الرئيسية / الأعراض", type: "textarea", required: true },
+      { id: "s5", label: "منذ متى بدأت؟", type: "text", required: true },
+      { id: "s6", label: "شدة الانزعاج (1-10)", type: "scale", scaleMin: 1, scaleMax: 10, required: true },
+      { id: "s7", label: "أعراض مصاحبة", type: "multiple", options: ["إرهاق مستمر", "دوخة", "صداع متكرر", "حمى", "فقدان وزن غير مبرر", "زيادة وزن", "عطش شديد", "تبول متكرر", "ألم بطن", "غثيان أو قيء", "إمساك أو إسهال", "اصفرار", "تورم أرجل", "ضيق تنفس", "خفقان", "تساقط شعر", "جفاف جلد", "آلام مفاصل", "نزيف أو كدمات سهلة", "لا يوجد"] },
+      { id: "s8", label: "أمراض مزمنة معروفة", type: "textarea" },
+      { id: "s9", label: "أدوية حالية", type: "textarea" },
+      { id: "s10", label: "صائم؟", type: "yesno" },
+      { id: "s11", label: "معلومات إضافية", type: "textarea" }
+    ]},
+  { id: "tpl-followup", title: "متابعة بعد التحاليل", description: "متابعة الحالة بعد ظهور النتائج وبدء الالتزام بالتوصيات", category: "medical",
+    questions: [
+      { id: "fl1", label: "هل استلمت النتائج؟", type: "yesno", required: true },
+      { id: "fl2", label: "هل راجع الطبيب النتائج؟", type: "yesno" },
+      { id: "fl3", label: "تحسن الأعراض؟", type: "single", options: ["تحسنت كثيراً", "تحسنت قليلاً", "نفس المستوى", "سائت"], required: true },
+      { id: "fl4", label: "مقياس الحالة العام الآن (1-10)", type: "scale", scaleMin: 1, scaleMax: 10, required: true },
+      { id: "fl5", label: "أعراض جديدة؟", type: "textarea" },
+      { id: "fl6", label: "تحتاج إعادة تحاليل؟", type: "yesno" },
+      { id: "fl7", label: "هل التزمت بالنظام الغذائي المقترح؟", type: "single", options: ["التزمت بالكامل", "التزمت جزئياً", "لم ألتزم"], required: true },
+      { id: "fl8", label: "هل تناولت المكملات/الأدوية الموصى بها؟", type: "single", options: ["بانتظام", "بشكل متقطع", "لم أبدأ بعد", "لا يوجد موصى به"] },
+      { id: "fl9", label: "هل شعرت بأي أعراض جانبية من المكملات أو الأدوية؟", type: "yesno" },
+      { id: "fl10", label: "إن وجدت أعراض جانبية اذكرها", type: "text" },
+      { id: "fl11", label: "أهم نتيجة تحليل تتذكرها (مثال: الحديد 8، السكر 130)", type: "textarea" },
+      { id: "fl12", label: "ملاحظاتك", type: "textarea" }
+    ]},
+  { id: "tpl-service", title: "تقييم خدمة المعمل", description: "تقييم تجربة المريض مع معامل رامي مختار", category: "feedback",
+    questions: [
+      { id: "sv1", label: "سرعة الاستقبال والتعامل (1-5)", type: "scale", scaleMin: 1, scaleMax: 5, required: true },
+      { id: "sv2", label: "نظافة المكان وراحة الانتظار (1-5)", type: "scale", scaleMin: 1, scaleMax: 5, required: true },
+      { id: "sv3", label: "مهارة سحب العينات (1-5)", type: "scale", scaleMin: 1, scaleMax: 5, required: true },
+      { id: "sv4", label: "سرعة ظهور النتائج (1-5)", type: "scale", scaleMin: 1, scaleMax: 5, required: true },
+      { id: "sv5", label: "هل تنصح الآخرين بالمعمل؟", type: "yesno", required: true },
+      { id: "sv6", label: "ما الذي أعجبك؟", type: "textarea" },
+      { id: "sv7", label: "ما يمكن تحسينه؟", type: "textarea" },
+      { id: "sv8", label: "ملاحظات", type: "textarea" }
+    ]}
+];
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const d = { patients: [], responses: [], settings: Object.assign({}, DEFAULT_SETTINGS), questionnaires: TEMPLATES };
+      saveData(d); return d;
+    }
+    const d = JSON.parse(raw);
+    if (!d.settings) d.settings = Object.assign({}, DEFAULT_SETTINGS);
+    if (!d.questionnaires || !d.questionnaires.length) d.questionnaires = TEMPLATES;
+    return d;
+  } catch (e) {
+    return { patients: [], responses: [], settings: Object.assign({}, DEFAULT_SETTINGS), questionnaires: TEMPLATES };
+  }
+}
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+function genId(p) { return p + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8); }
+
+var currentPatientId = null, currentResponseId = null, formContext = { qId: null, patientId: null };
+
+function showView(name) {
+  document.querySelectorAll(".view").forEach(function(v) { v.classList.remove("active"); });
+  var el = document.getElementById("view-" + name);
+  if (el) el.classList.add("active");
+  var isForm = name === "form" || name === "form-success";
+  document.getElementById("admin-header").style.display = isForm ? "none" : "block";
+  if (!isForm) updateHeaderBranding();
+  if (name === "dashboard") renderDashboard();
+  if (name === "patients") renderPatientsList();
+  if (name === "questionnaires") renderQuestionnaires();
+  if (name === "settings") loadSettingsUI();
+}
+
+function updateHeaderBranding() {
+  try {
+    var s = loadData().settings;
+    var nameEl = document.getElementById("header-lab-name");
+    if (nameEl) nameEl.textContent = s.labName || "معامل رامي مختار";
+    var box = document.getElementById("header-logo-box");
+    if (box) {
+      if (s.labLogo) box.innerHTML = '<img src="' + s.labLogo + '" class="w-full h-full object-cover" />';
+      else box.textContent = (s.labName || "م").trim().charAt(0) || "م";
+    }
+    var dot = document.getElementById("cloud-status-dot");
+    if (dot) {
+      if (isCloud()) { dot.style.background = "#22c55e"; dot.title = "متصل بالسحابة — البيانات متزامنة"; }
+      else { dot.style.background = "#f59e0b"; dot.title = "غير متصل بالسحابة — البيانات محفوظة على هذا الجهاز فقط"; }
+    }
+  } catch (e) { console.warn(e); }
+}
+
+function renderDashboard() {
+  var data = loadData();
+  document.getElementById("stat-patients").textContent = data.patients.length;
+  document.getElementById("stat-new").textContent = data.patients.filter(function(p) { return p.status === "new"; }).length;
+  document.getElementById("stat-responses").textContent = data.responses.length;
+  document.getElementById("stat-feedback").textContent = data.responses.filter(function(r) {
+    var q = data.questionnaires.find(function(x) { return x.id === r.questionnaireId; });
+    return q && q.category === "feedback";
+  }).length;
+  var cont = document.getElementById("recent-responses");
+  var recent = data.responses.slice(0, 8);
+  if (!recent.length) {
+    cont.innerHTML = '<div class="card p-8 text-center text-slate-500">لا توجد ردود بعد. أضف مريضاً وأرسل استبياناً عبر واتساب.</div>';
+    return;
+  }
+  cont.innerHTML = recent.map(function(r) {
+    var p = data.patients.find(function(x) { return x.id === r.patientId; });
+    return '<div onclick="openResponse(\'' + r.id + '\')" class="card p-4 hover:border-brand-400 cursor-pointer transition"><div class="flex justify-between"><div><p class="font-medium">' + (p ? p.name : "مريض") + '</p><p class="text-sm text-slate-500">' + r.questionnaireTitle + '</p></div><p class="text-xs text-slate-400">' + new Date(r.submittedAt).toLocaleString("ar-EG") + '</p></div></div>';
+  }).join("");
+}
+
+function renderPatientsList() {
+  var data = loadData();
+  var s = (document.getElementById("search-patients") && document.getElementById("search-patients").value || "").trim();
+  var list = data.patients;
+  if (s) list = list.filter(function(p) { return p.name.indexOf(s) !== -1 || (p.phone && p.phone.indexOf(s) !== -1); });
+  var labels = { new: "جديد", followup: "متابعة", closed: "مغلق" };
+  var colors = { new: "bg-amber-100 text-amber-800", followup: "bg-sky-100 text-sky-800", closed: "bg-slate-100 text-slate-600" };
+  var cont = document.getElementById("patients-list");
+  if (!list.length) { cont.innerHTML = '<div class="card p-10 text-center text-slate-500">لا يوجد مرضى.</div>'; return; }
+  cont.innerHTML = list.map(function(p) {
+    return '<div onclick="openPatient(\'' + p.id + '\')" class="card p-4 hover:border-brand-400 cursor-pointer transition"><div class="flex justify-between items-center"><div><p class="font-medium text-lg">' + p.name + '</p><p class="text-sm text-slate-500">' + (p.phone || "—") + ' • ' + new Date(p.createdAt).toLocaleDateString("ar-EG") + '</p></div><span class="text-xs px-2.5 py-1 rounded-full ' + (colors[p.status] || colors.new) + '">' + (labels[p.status] || "جديد") + '</span></div></div>';
+  }).join("");
+}
+
+function openAddPatientModal() {
+  document.getElementById("new-patient-name").value = "";
+  document.getElementById("new-patient-phone").value = "";
+  document.getElementById("modal-add-patient").classList.remove("hidden");
+}
+function closeAddPatientModal() { document.getElementById("modal-add-patient").classList.add("hidden"); }
+
+function addPatient() {
+  var name = document.getElementById("new-patient-name").value.trim();
+  var phone = document.getElementById("new-patient-phone").value.trim();
+  if (!name) return alert("الاسم مطلوب");
+  if (!phone) return alert("رقم الواتساب مطلوب");
+  var data = loadData();
+  var patient = { id: genId("pat"), name: name, phone: phone, status: "new", notes: "", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  data.patients.unshift(patient);
+  saveData(data);
+  cloudUpsertPatient(patient).catch(function(e){ console.warn(e); });
+  closeAddPatientModal();
+  showView("dashboard");
+}
+
+function openPatient(id) {
+  currentPatientId = id;
+  var data = loadData();
+  var p = data.patients.find(function(x) { return x.id === id; });
+  if (!p) return;
+  document.getElementById("pd-name").textContent = p.name;
+  document.getElementById("pd-phone").textContent = p.phone || "بدون رقم";
+  document.getElementById("pd-notes").value = p.notes || "";
+  document.getElementById("pd-select-q").innerHTML = '<option value="">اختر الاستبيان...</option>' + data.questionnaires.map(function(q) { return '<option value="' + q.id + '">' + q.title + '</option>'; }).join("");
+  document.getElementById("pd-link-box").classList.add("hidden");
+
+  var resps = data.responses.filter(function(r) { return r.patientId === id; });
+  var titles = []; // أنواع الاستبيانات التي أجاب عنها هذا المريض بالفعل، بدون تكرار
+  resps.forEach(function(r) { if (titles.indexOf(r.questionnaireTitle) === -1) titles.push(r.questionnaireTitle); });
+  var filterSel = document.getElementById("pd-filter-q");
+  filterSel.innerHTML = '<option value="">كل الأنواع (' + resps.length + ')</option>' + titles.map(function(t) { return '<option value="' + t.replace(/"/g, "&quot;") + '">' + t + '</option>'; }).join("");
+  filterSel.value = "";
+
+  renderPatientResponses();
+  showView("patient-detail");
+}
+
+function renderPatientResponses() {
+  if (!currentPatientId) return;
+  var data = loadData();
+  var filterVal = (document.getElementById("pd-filter-q") && document.getElementById("pd-filter-q").value) || "";
+  var resps = data.responses.filter(function(r) { return r.patientId === currentPatientId; });
+  if (filterVal) resps = resps.filter(function(r) { return r.questionnaireTitle === filterVal; });
+  var cont = document.getElementById("pd-responses");
+  if (!resps.length) { cont.innerHTML = '<div class="card p-8 text-center text-slate-500">لا توجد ردود مطابقة.</div>'; return; }
+  cont.innerHTML = resps.map(function(r) {
+    return '<div onclick="openResponse(\'' + r.id + '\')" class="card p-4 hover:border-brand-400 cursor-pointer transition"><div class="flex justify-between"><div><p class="font-medium">' + r.questionnaireTitle + '</p><p class="text-sm text-slate-500">' + new Date(r.submittedAt).toLocaleString("ar-EG") + '</p></div>' + (r.aiAnalysis ? '<span class="text-xs bg-brand-100 text-brand-800 px-2 py-1 rounded-full">تم التحليل</span>' : '') + '</div></div>';
+  }).join("");
+}
+
+function savePatientNotes() {
+  if (!currentPatientId) return;
+  var data = loadData();
+  var i = data.patients.findIndex(function(p) { return p.id === currentPatientId; });
+  if (i !== -1) {
+    data.patients[i].notes = document.getElementById("pd-notes").value;
+    data.patients[i].updatedAt = new Date().toISOString();
+    saveData(data);
+    cloudUpdatePatient(data.patients[i]).catch(function(e){ console.warn(e); });
+    alert("تم حفظ الملاحظات");
+  }
+}
+
+function buildFormUrl(qId, patientId, patientName) {
+  var url = location.origin + location.pathname + "?form=" + encodeURIComponent(qId) + "&patientId=" + encodeURIComponent(patientId);
+  if (patientName) url += "&patientName=" + encodeURIComponent(patientName);
+  return url;
+}
+
+function generateLinkOnly() {
+  var qId = document.getElementById("pd-select-q").value;
+  if (!qId) return alert("اختر الاستبيان أولاً");
+  var pdata = loadData().patients.find(function(x){return x.id===currentPatientId;});
+  var url = buildFormUrl(qId, currentPatientId, pdata && pdata.name);
+  var box = document.getElementById("pd-link-box");
+  box.textContent = url; box.classList.remove("hidden");
+  navigator.clipboard.writeText(url).then(function() { alert("تم نسخ اللينك"); }).catch(function() {});
+}
+
+function sendWhatsApp() {
+  var qId = document.getElementById("pd-select-q").value;
+  if (!qId) return alert("اختر الاستبيان أولاً");
+  var data = loadData();
+  var p = data.patients.find(function(x) { return x.id === currentPatientId; });
+  var q = data.questionnaires.find(function(x) { return x.id === qId; });
+  if (!p || !p.phone) return alert("لا يوجد رقم واتساب للمريض");
+  var phone = p.phone.replace(/\D/g, "");
+  if (phone.startsWith("0")) phone = "20" + phone.slice(1);
+  if (!phone.startsWith("20") && phone.length === 10) phone = "20" + phone;
+  var url = buildFormUrl(qId, currentPatientId, p.name);
+  var lab = data.settings.labName || "معامل رامي مختار";
+  var msg = "مرحباً " + p.name + "،\n\n" + lab + "\nنرجو تعبئة الاستبيان التالي (يفتح الاستبيان فقط):\n\n" + q.title + "\n\n" + url + "\n\nشكراً لثقتكم بنا.";
+  window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg), "_blank");
+  var box = document.getElementById("pd-link-box");
+  box.textContent = url; box.classList.remove("hidden");
+}
+
+function openResponse(id) {
+  currentResponseId = id;
+  var data = loadData();
+  var r = data.responses.find(function(x) { return x.id === id; });
+  if (!r) return;
+  var p = data.patients.find(function(x) { return x.id === r.patientId; });
+  document.getElementById("rd-meta").textContent = (p ? p.name : "مريض") + " • " + r.questionnaireTitle;
+  document.getElementById("rd-date").textContent = "تاريخ الإرسال: " + new Date(r.submittedAt).toLocaleString("ar-EG");
+  document.getElementById("rd-back-btn").onclick = function() { openPatient(r.patientId); };
+  var q = data.questionnaires.find(function(x) { return x.id === r.questionnaireId; });
+  var labels = {};
+  if (q) q.questions.forEach(function(qq) { labels[qq.id] = qq.label; });
+  document.getElementById("rd-answers").innerHTML = Object.keys(r.answers).map(function(k) {
+    var v = r.answers[k];
+    var val = Array.isArray(v) ? v.join("، ") : String(v);
+    return '<div class="border-b border-brand-50 pb-3"><p class="text-sm text-slate-500">' + (labels[k] || k) + '</p><p class="font-medium">' + val + '</p></div>';
+  }).join("");
+  document.getElementById("rd-notes").value = r.doctorNotes || "";
+  labResultsDraft = (r.labResults && r.labResults.length) ? JSON.parse(JSON.stringify(r.labResults)) : [];
+  lastLabPdfText = r.labPdfText || "";
+  renderLabResults();
+  var st = document.getElementById("lab-pdf-status");
+  if (st) {
+    if (lastLabPdfText) {
+      st.classList.remove("hidden");
+      st.className = "text-sm rounded-lg px-3 py-2 border bg-sky-50 text-sky-800 border-sky-200";
+      st.textContent = "مرفق نص مستخرج سابقاً من PDF نتائج (" + lastLabPdfText.length + " حرف). يمكن رفع PDF جديد لدمج إضافي.";
+    } else {
+      st.classList.add("hidden");
+    }
+  }
+  var aiBox = document.getElementById("rd-ai-result");
+  var aiHint = document.getElementById("rd-ai-hint");
+  if (r.aiAnalysis) {
+    aiBox.textContent = r.aiAnalysis; aiBox.classList.remove("hidden"); aiHint.classList.add("hidden");
+    document.getElementById("rd-ai-btn").textContent = "إعادة التحليل";
+  } else {
+    aiBox.classList.add("hidden"); aiHint.classList.remove("hidden");
+    document.getElementById("rd-ai-btn").textContent = "تشغيل التحليل الشامل";
+  }
+  showView("response");
+}
+
+var labResultsDraft = [];
+
+function labRowHtml(item, idx) {
+  var flags = ["طبيعي", "مرتفع", "منخفض"];
+  return '<div class="flex flex-wrap gap-2 items-center border border-slate-200 rounded-lg p-2 bg-slate-50" data-idx="' + idx + '">' +
+    '<input class="lab-name border border-brand-200 rounded-lg px-2 py-1.5 text-sm flex-1 min-w-[110px]" placeholder="اسم التحليل" value="' + String(item.name || "").replace(/"/g, "&quot;") + '" />' +
+    '<input class="lab-value border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-24" placeholder="القيمة" value="' + String(item.value || "").replace(/"/g, "&quot;") + '" />' +
+    '<input class="lab-unit border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-20" placeholder="الوحدة" value="' + String(item.unit || "").replace(/"/g, "&quot;") + '" />' +
+    '<input class="lab-range border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-28" placeholder="المعدل الطبيعي" value="' + String(item.range || "").replace(/"/g, "&quot;") + '" />' +
+    '<select class="lab-flag border border-brand-200 rounded-lg px-2 py-1.5 text-sm">' + flags.map(function(f) { return '<option' + (item.flag === f ? " selected" : "") + '>' + f + '</option>'; }).join("") + '</select>' +
+    '<button onclick="removeLabResultRow(' + idx + ')" class="text-red-600 text-xs hover:underline shrink-0">حذف</button>' +
+  '</div>';
+}
+
+function renderLabResults() {
+  var cont = document.getElementById("rd-lab-results");
+  if (!cont) return;
+  if (!labResultsDraft.length) { cont.innerHTML = '<p class="text-sm text-slate-400">لا توجد نتائج تحاليل مسجلة بعد.</p>'; return; }
+  cont.innerHTML = labResultsDraft.map(function(item, idx) { return labRowHtml(item, idx); }).join("");
+}
+
+function syncLabDraftFromDom() {
+  var rows = document.querySelectorAll("#rd-lab-results [data-idx]");
+  var arr = [];
+  rows.forEach(function(row) {
+    arr.push({
+      name: row.querySelector(".lab-name").value.trim(),
+      value: row.querySelector(".lab-value").value.trim(),
+      unit: row.querySelector(".lab-unit").value.trim(),
+      range: row.querySelector(".lab-range").value.trim(),
+      flag: row.querySelector(".lab-flag").value
+    });
+  });
+  labResultsDraft = arr;
+}
+
+function addLabResultRow() {
+  syncLabDraftFromDom();
+  labResultsDraft.push({ name: "", value: "", unit: "", range: "", flag: "طبيعي" });
+  renderLabResults();
+}
+
+function removeLabResultRow(idx) {
+  syncLabDraftFromDom();
+  labResultsDraft.splice(idx, 1);
+  renderLabResults();
+}
+
+
+// ========== رفع واستخراج نتائج التحاليل من PDF ==========
+var lastLabPdfText = ""; // النص الخام المستخرج من آخر PDF (للتحليل AI)
+
+function setLabPdfStatus(msg, type) {
+  var el = document.getElementById("lab-pdf-status");
+  if (!el) return;
+  el.classList.remove("hidden", "bg-emerald-50", "text-emerald-800", "border-emerald-200", "bg-amber-50", "text-amber-900", "border-amber-200", "bg-red-50", "text-red-800", "border-red-200", "bg-sky-50", "text-sky-800", "border-sky-200");
+  var map = {
+    ok: ["bg-emerald-50", "text-emerald-800", "border-emerald-200"],
+    warn: ["bg-amber-50", "text-amber-900", "border-amber-200"],
+    err: ["bg-red-50", "text-red-800", "border-red-200"],
+    info: ["bg-sky-50", "text-sky-800", "border-sky-200"]
+  };
+  (map[type] || map.info).forEach(function(c) { el.classList.add(c); });
+  el.classList.add("border");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function clearLabResults() {
+  if (!confirm("مسح كل نتائج التحاليل المسجلة لهذا الرد؟")) return;
+  labResultsDraft = [];
+  lastLabPdfText = "";
+  renderLabResults();
+  var el = document.getElementById("lab-pdf-status");
+  if (el) el.classList.add("hidden");
+  // حفظ فوري
+  if (currentResponseId) {
+    var data = loadData();
+    var i = data.responses.findIndex(function(x) { return x.id === currentResponseId; });
+    if (i !== -1) {
+      data.responses[i].labResults = [];
+      data.responses[i].labPdfText = "";
+      saveData(data);
+    }
+  }
+}
+
+async function extractTextFromPdf(file) {
+  if (!window.pdfjsLib) throw new Error("مكتبة PDF غير محمّلة — تحقق من الاتصال بالإنترنت");
+  var buf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var parts = [];
+  for (var p = 1; p <= pdf.numPages; p++) {
+    var page = await pdf.getPage(p);
+    var tc = await page.getTextContent();
+    var line = tc.items.map(function(it) { return it.str; }).join(" ");
+    parts.push(line);
+  }
+  return parts.join("\n").replace(/\s+/g, " ").trim();
+}
+
+/** تحليل بسيط بالتعبيرات النمطية لملفات التحاليل الشائعة (عربي/إنجليزي) */
+function parseLabResultsHeuristic(text) {
+  var results = [];
+  var seen = {};
+  // أنماط شائعة: اسم ... قيمة ... وحدة ... مدى
+  // أمثلة: Hemoglobin 12.5 g/dL (12-16) أو الهيموجلوبين : 12.5
+  var patterns = [
+    // Name: value unit (range)  أو Name value unit range
+    /([A-Za-z\u0600-\u06FF][A-Za-z0-9\u0600-\u06FF\s\/\-\.\(\)]{2,40}?)\s*[:=]?\s*([<>]?\s*\d+[.,]?\d*)\s*([a-zA-Z%\/µμ^\d\-\.]+)?\s*(?:\(?\s*([\d.,\-\s]+)\s*\)?)?/g
+  ];
+  var commonNames = [
+    "Hemoglobin","Hb","HGB","الهيموجلوبين","هيموجلوبين",
+    "WBC","White Blood","كريات بيضاء","كرات دم بيضاء",
+    "RBC","Red Blood","كريات حمراء",
+    "Platelets","PLT","الصفائح","صفائح دموية",
+    "Hematocrit","HCT","الهيماتوكريت",
+    "MCV","MCH","MCHC",
+    "Glucose","سكر","FBS","RBS","HbA1c","تراكمي","السكر التراكمي",
+    "Creatinine","كرياتينين","Urea","يوريا","BUN",
+    "ALT","AST","SGPT","SGOT","ALP","GGT","بيليروبين","Bilirubin",
+    "Cholesterol","الكوليسترول","Triglycerides","الدهون الثلاثية","HDL","LDL",
+    "TSH","T3","T4","الهرمون المحفز للغدة",
+    "Vitamin D","فيتامين د","Vitamin B12","فيتامين ب12","Ferritin","فيريتين","Iron","حديد",
+    "Calcium","كالسيوم","Sodium","صوديوم","Potassium","بوتاسيوم","Magnesium",
+    "CRP","ESR","سرعة الترسيب","Uric Acid","حمض البوليك","PSA","AFP"
+  ];
+  // تقسيم لأسطر تقريبية
+  var chunks = text.split(/(?=\b(?:Hemoglobin|Hb\b|WBC|RBC|Platelet|Glucose|Creatinine|ALT|AST|TSH|Vitamin|Ferritin|Cholesterol|Triglyceride|HDL|LDL|Calcium|Sodium|Potassium|CRP|ESR|Urea|BUN|HbA1c|الهيموجلوبين|سكر|كرياتينين|فيريتين|كوليسترول|فيتامين)\b)/i);
+  chunks.forEach(function(chunk) {
+    chunk = chunk.trim();
+    if (chunk.length < 5 || chunk.length > 120) return;
+    var m = chunk.match(/^([A-Za-z\u0600-\u06FF][A-Za-z0-9\u0600-\u06FF\s\/\-\.]{1,35}?)\s*[:=\-]?\s*([<>]?\s*\d+[.,]?\d*)\s*([a-zA-Z%\/µμ\^\d\-\.]{0,12})?\s*(?:\(?\s*([\d.,\s\-–—]+)\s*\)?)?/i);
+    if (!m) return;
+    var name = m[1].trim().replace(/\s+/g, " ");
+    var value = (m[2] || "").replace(",", ".").replace(/\s/g, "");
+    var unit = (m[3] || "").trim();
+    var range = (m[4] || "").trim().replace(/[–—]/g, "-");
+    if (!name || !value || name.length < 2) return;
+    var key = name.toLowerCase();
+    if (seen[key]) return;
+    // تجاهل كلمات غير تحاليل
+    if (/page|date|patient|name|lab|report|نتيجة|تاريخ|مريض|معمل|صفحة/i.test(name) && name.length < 8) return;
+    seen[key] = true;
+    var flag = "طبيعي";
+    var num = parseFloat(value.replace(/[<>]/g, ""));
+    if (!isNaN(num) && range) {
+      var rm = range.match(/([\d.]+)\s*[-–—]\s*([\d.]+)/);
+      if (rm) {
+        var lo = parseFloat(rm[1]), hi = parseFloat(rm[2]);
+        if (!isNaN(lo) && !isNaN(hi)) {
+          if (num > hi) flag = "مرتفع";
+          else if (num < lo) flag = "منخفض";
+        }
+      }
+    }
+    results.push({ name: name, value: value, unit: unit, range: range, flag: flag });
+  });
+  // حد أقصى معقول
+  return results.slice(0, 40);
+}
+
+/** استخراج منظم عبر Gemini إن وُجد المفتاح */
+async function parseLabResultsWithAI(text) {
+  var data = loadData();
+  var apiKey = (data.settings && data.settings.aiKey) || "";
+  if (!apiKey) return null;
+  var prompt = "أنت مساعد طبي متخصص في قراءة تقارير التحاليل المعملية. استخرج من النص التالي كل نتائج التحاليل بشكل JSON فقط (مصفوفة) بدون أي شرح إضافي.\n" +
+    "كل عنصر: {\"name\":\"اسم التحليل\",\"value\":\"القيمة\",\"unit\":\"الوحدة\",\"range\":\"المعدل الطبيعي إن وُجد\",\"flag\":\"طبيعي أو مرتفع أو منخفض\"}\n" +
+    "قواعد: flag يكون مرتفع لو القيمة أعلى من المدى، منخفض لو أقل، طبيعي لو داخل المدى أو غير معروف. استخدم الأسماء كما وردت. لا تخترع تحاليل غير موجودة في النص.\n" +
+    "النص:\n" + text.slice(0, 12000);
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+  var res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+    })
+  });
+  if (!res.ok) {
+    var t = await res.text();
+    throw new Error("فشل Gemini: " + t.slice(0, 120));
+  }
+  var json = await res.json();
+  var raw = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
+  if (!raw) throw new Error("لا استجابة من النموذج");
+  // تنظيف أي markdown
+  raw = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  var arr = JSON.parse(raw);
+  if (!Array.isArray(arr)) throw new Error("الصيغة ليست مصفوفة");
+  return arr.filter(function(x) { return x && x.name && (x.value !== undefined && x.value !== ""); }).map(function(x) {
+    var flag = x.flag || "طبيعي";
+    if (["مرتفع","منخفض","طبيعي"].indexOf(flag) === -1) {
+      if (/high|elevat|فوق|عالي|مرتفع/i.test(String(flag))) flag = "مرتفع";
+      else if (/low|تحت|منخفض|ناقص/i.test(String(flag))) flag = "منخفض";
+      else flag = "طبيعي";
+    }
+    return {
+      name: String(x.name).trim(),
+      value: String(x.value).trim(),
+      unit: x.unit ? String(x.unit).trim() : "",
+      range: x.range ? String(x.range).trim() : "",
+      flag: flag
+    };
+  }).slice(0, 50);
+}
+
+async function handleLabPdfUpload(ev) {
+  var input = ev.target;
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
+    setLabPdfStatus("الملف يجب أن يكون PDF", "err");
+    input.value = "";
+    return;
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    setLabPdfStatus("حجم الملف كبير جداً (الحد 15 ميجا)", "err");
+    input.value = "";
+    return;
+  }
+  setLabPdfStatus("جاري استخراج النص من PDF…", "info");
+  try {
+    var text = await extractTextFromPdf(file);
+    if (!text || text.length < 20) {
+      setLabPdfStatus("لم يُستخرج نص كافٍ — قد يكون الملف صورة ممسوحة (بدون نص). جرّب PDF نصي أو أدخل يدوياً.", "warn");
+      input.value = "";
+      return;
+    }
+    lastLabPdfText = text;
+    setLabPdfStatus("تم استخراج " + text.length + " حرفاً. جاري تحليل النتائج…", "info");
+
+    var parsed = null;
+    var method = "";
+    try {
+      parsed = await parseLabResultsWithAI(text);
+      if (parsed && parsed.length) method = "AI (Gemini)";
+    } catch (e) {
+      console.warn("AI parse failed", e);
+    }
+    if (!parsed || !parsed.length) {
+      parsed = parseLabResultsHeuristic(text);
+      method = "تحليل تلقائي محلي";
+    }
+    if (!parsed.length) {
+      setLabPdfStatus("استُخرج النص لكن لم تُحدد نتائج منظمة تلقائياً. افتح النص في وحدة التحكم أو أدخل يدوياً. يمكنك لصق النتائج يدوياً.", "warn");
+      console.log("PDF text sample:", text.slice(0, 2000));
+      input.value = "";
+      return;
+    }
+    // دمج مع الموجود (بدون تكرار بالاسم)
+    syncLabDraftFromDom();
+    var existingNames = {};
+    labResultsDraft.forEach(function(x) { if (x.name) existingNames[x.name.toLowerCase()] = true; });
+    var added = 0;
+    parsed.forEach(function(p) {
+      var k = (p.name || "").toLowerCase();
+      if (!k || existingNames[k]) return;
+      labResultsDraft.push(p);
+      existingNames[k] = true;
+      added++;
+    });
+    renderLabResults();
+    setLabPdfStatus("✅ تم إضافة " + added + " نتيجة من PDF عبر " + method + ". راجع القيم ثم اضغط «حفظ نتائج التحاليل».", "ok");
+    // حفظ النص الخام مع الرد
+    if (currentResponseId) {
+      var data = loadData();
+      var i = data.responses.findIndex(function(x) { return x.id === currentResponseId; });
+      if (i !== -1) {
+        data.responses[i].labPdfText = text.slice(0, 20000);
+        saveData(data);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    setLabPdfStatus("خطأ: " + (err.message || String(err)), "err");
+  }
+  input.value = "";
+}
+
+
+function saveLabResults() {
+  if (!currentResponseId) return;
+  syncLabDraftFromDom();
+  var cleaned = labResultsDraft.filter(function(x) { return x.name || x.value; });
+  var data = loadData();
+  var i = data.responses.findIndex(function(x) { return x.id === currentResponseId; });
+  if (i === -1) return;
+  data.responses[i].labResults = cleaned;
+  if (typeof lastLabPdfText === "string" && lastLabPdfText) {
+    data.responses[i].labPdfText = lastLabPdfText.slice(0, 20000);
+  }
+  saveData(data);
+  cloudUpdateResponse(data.responses[i]).catch(function(e) { console.warn(e); });
+  labResultsDraft = cleaned;
+  renderLabResults();
+  alert("تم حفظ نتائج التحاليل. اضغط 'تشغيل التحليل الشامل' لدمجها مع الأعراض.");
+}
+
+function saveResponseNotes() {
+  if (!currentResponseId) return;
+  var data = loadData();
+  var i = data.responses.findIndex(function(r) { return r.id === currentResponseId; });
+  if (i !== -1) {
+    data.responses[i].doctorNotes = document.getElementById("rd-notes").value;
+    saveData(data);
+    cloudUpdateResponse(data.responses[i]).catch(function(e){ console.warn(e); });
+    alert("تم حفظ رأيك الطبي");
+  }
+}
+
+// يحاول استخراج تسميات الأسئلة + العمر/النوع + أي إجابات من نوع "مقياس شدة"
+function getResponseContext(r) {
+  var data = loadData();
+  var q = (data.questionnaires || []).find(function(x) { return x.id === r.questionnaireId; })
+       || (typeof TEMPLATES !== "undefined" ? TEMPLATES.find(function(x) { return x.id === r.questionnaireId; }) : null);
+  var labels = {}, age = "", gender = "", scales = [];
+  if (q && q.questions) {
+    q.questions.forEach(function(qq) {
+      labels[qq.id] = qq.label;
+      var v = r.answers[qq.id];
+      if (v === undefined || v === "" || v === null) return;
+      if (!age && /العمر/.test(qq.label)) age = String(v);
+      if (!gender && /الجنس/.test(qq.label)) gender = String(v);
+      if (qq.type === "scale") {
+        var min = qq.scaleMin || 1, max = qq.scaleMax || 10;
+        var ratio = (Number(v) - min) / (max - min || 1);
+        scales.push({ label: qq.label, value: v, min: min, max: max, ratio: ratio });
+      }
+    });
+  }
+  return { questions: q ? q.questions : [], labels: labels, age: age, gender: gender, scales: scales, labResults: r.labResults || [] };
+}
+
+function runAI() {
+  if (!currentResponseId) return;
+  var data = loadData();
+  var r = data.responses.find(function(x) { return x.id === currentResponseId; });
+  if (!r) return;
+  var btn = document.getElementById("rd-ai-btn");
+  btn.disabled = true; btn.textContent = "جاري التحليل...";
+  var key = (data.settings.aiKey || "").trim();
+  var ctx = getResponseContext(r);
+  var done = function(result) {
+    r.aiAnalysis = result; saveData(data);
+    cloudUpdateResponse(r).catch(function(e){ console.warn(e); });
+    var box = document.getElementById("rd-ai-result");
+    box.textContent = result; box.classList.remove("hidden");
+    document.getElementById("rd-ai-hint").classList.add("hidden");
+    btn.disabled = false; btn.textContent = "إعادة التحليل";
+  };
+  if (key) {
+    callRealAI(r, key, ctx).then(done).catch(function(e) {
+      alert("فشل AI الحقيقي: " + (e.message || e) + "\nسيتم استخدام التحليل المدمج.");
+      done(generateSmartAnalysis(r.answers, r.questionnaireTitle, ctx));
+    });
+  } else {
+    setTimeout(function() { done(generateSmartAnalysis(r.answers, r.questionnaireTitle, ctx)); }, 600);
+  }
+}
+
+function callRealAI(response, apiKey, ctx) {
+  var labels = (ctx && ctx.labels) || {};
+  var answersText = Object.keys(response.answers).map(function(k) {
+    var v = response.answers[k];
+    return (labels[k] || k) + ": " + (Array.isArray(v) ? v.join(", ") : v);
+  }).join("\n");
+  var patientLine = "";
+  if (ctx && (ctx.age || ctx.gender)) {
+    patientLine = "بيانات المريض: " + (ctx.age ? "العمر " + ctx.age : "") + (ctx.age && ctx.gender ? " - " : "") + (ctx.gender ? "النوع " + ctx.gender : "") + "\n";
+  }
+  var labResults = (ctx && ctx.labResults) || [];
+  var labText = "";
+  if (labResults.length) {
+    labText = "\nنتائج التحاليل الفعلية التي ظهرت من المعمل:\n" + labResults.map(function(x) {
+      return "- " + x.name + ": " + x.value + (x.unit ? " " + x.unit : "") + (x.range ? " (المعدل الطبيعي: " + x.range + ")" : "") + (x.flag && x.flag !== "طبيعي" ? " ← " + x.flag : "");
+    }).join("\n") + "\n";
+  }
+  // إضافة مقتطف من نص PDF الأصلي إن وُجد لتعزيز دقة التفسير
+  var pdfExtra = "";
+  if (typeof lastLabPdfText === "string" && lastLabPdfText.length > 50) {
+    pdfExtra = "\n--- مقتطف من تقرير PDF الأصلي (للمرجع):\n" + lastLabPdfText.slice(0, 3500) + "\n";
+  } else if (response.labPdfText && response.labPdfText.length > 50) {
+    pdfExtra = "\n--- مقتطف من تقرير PDF الأصلي (للمرجع):\n" + response.labPdfText.slice(0, 3500) + "\n";
+  }
+  labText = (labText || "") + pdfExtra;
+
+  var prompt = labResults.length
+    ? "أنت استشاري طبي خبير في الطب الباطني والتحاليل المعملية في مصر. لديك شكوى المريض وأعراضه من الاستبيان، بالإضافة لنتائج تحاليل فعلية (وربما نص تقرير PDF). قدم بالعربية تفسيراً طبياً شاملاً ودقيقاً بأعلى مستوى مهني بالتنسيق التالي بالضبط (بعناوين واضحة):\n1) 📋 الحالة الطبية: تفسير شامل يربط الأعراض بنتائج التحاليل الفعلية (اذكر أي تحاليل غير طبيعية وعلاقتها المحتملة بالأعراض)\n2) 🔬 تحاليل متابعة إضافية مقترحة (إن لزم) مع السبب\n3) 🥗 نظام غذائي مناسب للحالة (نقاط عملية)\n4) 💊 تعليمات دوائية عامة (فئات عامة فقط بدون تحديد جرعات دقيقة، مع التنويه بضرورة استشارة الطبيب لتحديد الجرعة)\n5) 💡 نصائح طبية ونمط حياة\n6) 📅 موعد تحاليل المتابعة الدورية المقترح (بالتقريب) لكل تحليل غير طبيعي\n7) ⚠️ تحذيرات إن وجدت أعراض أو نتائج تستدعي تقييماً عاجلاً\n\nمهم جداً: هذا مساعد وليس تشخيصاً نهائياً ولا بديلاً عن قرار الطبيب المعالج.\n\nالاستبيان: " + response.questionnaireTitle + "\n" + patientLine + "الإجابات:\n" + answersText + labText
+    : "أنت مساعد طبي لمعمل تحاليل في مصر. بناءً على إجابات المريض، قدم بالعربية:\n1) ملخص موجز للحالة (يراعي عمر ونوع المريض إن وُجدا)\n2) قائمة تحاليل مقترحة مع سبب مختصر\n3) نظام غذائي عام مناسب (نقاط)\n4) نصائح طبية عامة\n5) تحذيرات إن وجدت (خصوصاً لو الأعراض شديدة)\n\nمهم: مساعد فقط وليس تشخيصاً.\n\nالاستبيان: " + response.questionnaireTitle + "\n" + patientLine + "الإجابات:\n" + answersText;
+
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } })
+  }).then(function(res) {
+    if (!res.ok) return res.text().then(function(t) { throw new Error(t.slice(0, 150)); });
+    return res.json();
+  }).then(function(json) {
+    var text = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
+    if (!text) throw new Error("لا يوجد نص من النموذج");
+    return text + "\n\n⚠️ اقتراح آلي للمساعدة فقط وليس تشخيصاً. القرار النهائي للطبيب.";
+  });
+}
+
+function generateSmartAnalysis(answers, title, ctx) {
+  ctx = ctx || { age: "", gender: "", scales: [] };
+  var labResults = ctx.labResults || [];
+  var abnormal = labResults.filter(function(x) { return x.name && x.flag && x.flag !== "طبيعي"; });
+  // نص نتائج التحاليل الشاذة يُضاف لنص البحث عن الكلمات المفتاحية حتى تتفاعل معه نفس قواعد الأعراض
+  var labKeywordText = abnormal.map(function(x) { return x.name + " " + (x.flag === "مرتفع" ? "مرتفع مرتفعة عالية زيادة" : "منخفض منخفضة قليلة نقص"); }).join(" ");
+  var pdfKw = (typeof lastLabPdfText === "string" ? lastLabPdfText : "").slice(0, 2000);
+  var text = (JSON.stringify(answers) + " " + labKeywordText + " " + pdfKw).toLowerCase();
+
+  var tests = {};
+  var diet = [];
+  var meds = [];
+  var tips = [];
+  var warnings = [];
+  var followups = {};
+  function addT(t) { tests[t] = true; }
+  function addFU(t, interval) { followups[t] = interval; }
+
+  // مجموعات أعراض/نتائج أوسع مع مرادفات شائعة — كل مجموعة: تحاليل + غذاء + تعليمات دوائية عامة + متابعة
+  if (/إرهاق|تعب|خمول|ضعف عام|شحوب|دوخة|أنيميا|تساقط شعر|كدمات|نزيف سهل|حديد|فيريتين/.test(text)) {
+    addT("صورة دم كاملة (CBC)"); addT("حديد + مخزون الحديد (Ferritin)"); addT("فيتامين B12"); addT("فيتامين D");
+    diet.push("أطعمة غنية بالحديد: كبدة، لحم أحمر، سبانخ، عدس"); diet.push("فيتامين C مع الوجبات لتحسين امتصاص الحديد");
+    meds.push("مكمل حديد (فئة عامة) — يُفضّل بعد الأكل مع فيتامين C، وتجنّب تناوله مع الشاي/القهوة مباشرة لأنها تقلل الامتصاص. الجرعة يحددها الطبيب حسب درجة النقص.");
+    addFU("الحديد ومخزون الحديد (Ferritin)", "6-8 أسابيع بعد بدء العلاج");
+  }
+  if (/عطش|تبول متكرر|سكري|فقدان وزن|جوع شديد|زغللة|سكر صائم|hba1c|تراكمي/.test(text)) {
+    addT("سكر صائم (FBS)"); addT("سكر تراكمي (HbA1c)");
+    diet.push("تقليل السكريات والنشويات المكررة"); diet.push("وجبات منتظمة مع ألياف وخضار");
+    meds.push("في حالة ارتفاع السكر: الالتزام بأدوية السكري الموصوفة (إن وجدت) في مواعيدها بانتظام، وعدم إيقافها من تلقاء النفس مهما تحسنت الأعراض.");
+    addFU("السكر التراكمي (HbA1c)", "3 أشهر");
+  }
+  if (/ضغط|خفقان|قلب|ضيق تنفس|دوار|الم.*صدر|نبض سريع|كوليسترول|دهون ثلاثية|lipid/.test(text)) {
+    addT("دهون كاملة (Lipid Profile)"); addT("صورة دم");
+    diet.push("تقليل الدهون المشبعة والملح، وزيادة الألياف والأسماك الدهنية");
+    meds.push("عند ارتفاع الكوليسترول/الدهون الثلاثية: الالتزام بأي علاج خافض للدهون يصفه الطبيب، مع تجنّب إيقافه فجأة.");
+    addFU("الدهون الكاملة (Lipid Profile)", "3 أشهر بعد تعديل النظام الغذائي");
+  }
+  if (/كلى|تورم|تبول|رغوة.*بول|الم.*ظهر|يوريا|كرياتينين/.test(text)) {
+    addT("وظائف كلى (Urea, Creatinine)"); addT("تحليل بول كامل");
+    meds.push("عند ضعف وظائف الكلى: تجنّب مسكنات الألم من فئة NSAIDs (مثل الإيبوبروفين) إلا بإذن الطبيب، وشرب كمية مياه مناسبة حسب توجيهه.");
+    addFU("وظائف الكلى", "4-6 أسابيع");
+  }
+  if (/كبد|اصفرار|بطن|غثيان|قيء|حكة جلد|بول غامق|وظائف كبد/.test(text)) {
+    addT("وظائف كبد كاملة"); addT("فيروسات كبدية عند الحاجة");
+    diet.push("تجنب الدهون الثقيلة والمقليات");
+    meds.push("عند ارتفاع إنزيمات الكبد: تجنّب الباراسيتامول بجرعات عالية والكحول تماماً، واستشر الطبيب قبل أي دواء أو عشب جديد.");
+    addFU("وظائف الكبد", "4-6 أسابيع");
+  }
+  if (/درقية|تساقط|وزن|إرهاق|برد شديد|عصبية زائدة|tsh|غدة درقية/.test(text)) {
+    addT("وظائف غدة درقية (TSH, FT4)");
+    meds.push("عند وجود اضطراب بالغدة الدرقية: الالتزام بموعد ثابت يومياً لدواء الغدة (عادة على الريق) دون انقطاع.");
+    addFU("وظائف الغدة الدرقية (TSH)", "6-8 أسابيع بعد بدء العلاج");
+  }
+  if (/مفاصل|آلام|تيبس|تورم مفصل|يوريك/.test(text)) { addT("ESR + CRP"); addT("يوريك أسيد"); diet.push("تقليل اللحوم الحمراء والمأكولات البحرية إن كان اليوريك أسيد مرتفعاً"); }
+  if (/حمى|سخونية|قشعريرة/.test(text)) { addT("صورة دم"); addT("CRP"); }
+  if (/كحة|بلغم|حساسية صدر|أزيز|ضيق تنفس/.test(text)) { addT("أشعة صدر عند الحاجة"); addT("صورة دم كاملة (CBC)"); }
+  if (/قلق|توتر|أرق|اضطراب نوم/.test(text)) { tips.push("قد تفيد استشارة نفسية داعمة بجانب التحاليل"); addT("وظائف غدة درقية (TSH, FT4)"); addT("فيتامين D"); }
+  if (title.indexOf("شامل") !== -1 || title.indexOf("روتين") !== -1 || Object.keys(tests).length === 0) {
+    ["صورة دم كاملة", "سكر صائم", "وظائف كلى", "وظائف كبد", "دهون كاملة", "تحليل بول"].forEach(addT);
+  }
+  if (/ضيق تنفس|ألم صدر|فقدان وزن غير مبرر/.test(text)) warnings.push("أعراض قد تستدعي تقييماً طبياً عاجلاً.");
+  if (/صائم/.test(text) && /نعم/.test(text)) tips.push("المريض صائم — مناسب لتحاليل السكر والدهون.");
+
+  // مراعاة العمر
+  var ageNum = parseInt(ctx.age, 10);
+  if (!isNaN(ageNum)) {
+    if (ageNum >= 40) { addT("دهون كاملة (Lipid Profile)"); tips.push("يُفضّل بعد سن الأربعين متابعة دورية لضغط الدم والدهون"); }
+    if (ageNum >= 60) { addT("فيتامين D"); tips.push("يُنصح بفحص كثافة العظام دورياً في هذه المرحلة العمرية"); }
+    if (ageNum < 12) tips.push("الجرعات والقيم المرجعية للأطفال تختلف عن البالغين — يُراعى ذلك عند التفسير");
+  }
+  // مراعاة النوع
+  if (/أنث/.test(ctx.gender)) {
+    if (/إرهاق|تعب|شحوب|دوخة/.test(text)) diet.push("مهم عند السيدات مراجعة انتظام الدورة الشهرية كسبب محتمل لنقص الحديد");
+  }
+
+  // مراعاة شدة الأعراض من أسئلة "مقياس"
+  (ctx.scales || []).forEach(function(sc) {
+    if (sc.ratio >= 0.7) warnings.push('درجة "' + sc.label + '" مرتفعة (' + sc.value + '/' + sc.max + ') — يُفضّل متابعة أقرب.');
+  });
+
+  // تنبيهات مباشرة من نتائج التحاليل الشاذة نفسها
+  abnormal.forEach(function(x) {
+    warnings.push(x.name + " خارج المعدل الطبيعي (" + x.value + (x.unit ? " " + x.unit : "") + " — " + x.flag + (x.range ? "، الطبيعي: " + x.range : "") + ")");
+  });
+
+  tips.push("شرب كمية كافية من الماء"); tips.push("النوم المنتظم"); tips.push("مراجعة الطبيب بعد النتائج");
+  if (!diet.length) { diet.push("نظام متوازن: خضار، فواكه، بروتينات"); diet.push("تقليل المقليات والغازيات"); }
+  if (!meds.length) meds.push("لا توجد توصيات دوائية محددة حالياً بناءً على المعطيات — الاستمرار في أي علاج حالي حسب تعليمات الطبيب.");
+
+  var lines = ["📋 التقرير الطبي الشامل (معامل رامي مختار)", "", "الاستبيان: " + title];
+  if (ctx.age || ctx.gender) lines.push("بيانات المريض: " + (ctx.age ? "العمر " + ctx.age : "") + (ctx.age && ctx.gender ? " - " : "") + (ctx.gender ? "النوع " + ctx.gender : ""));
+
+  // 1) الحالة الطبية بناءً على الأعراض والنتائج
+  lines.push("", "---", "🩺 الحالة الطبية:");
+  if (abnormal.length) {
+    lines.push("بناءً على الأعراض المذكورة ونتائج التحاليل الفعلية، تم رصد الآتي كنتائج خارج المعدل الطبيعي:");
+    abnormal.forEach(function(x) {
+      lines.push("• " + x.name + ": " + x.value + (x.unit ? " " + x.unit : "") + " — " + (x.flag === "مرتفع" ? "أعلى من الطبيعي" : "أقل من الطبيعي") + (x.range ? " (الطبيعي: " + x.range + ")" : ""));
+    });
+    lines.push("هذه النتائج قد تفسّر جزئياً الأعراض المذكورة، وتحتاج تقييم الطبيب لتأكيد الصورة الكاملة وربطها بالحالة الإكلينيكية.");
+  } else if (labResults.length) {
+    lines.push("نتائج التحاليل المسجلة حتى الآن كلها ضمن المعدل الطبيعي — مؤشر جيد، وإن استمرت الأعراض يُنصح بمراجعة الطبيب لاستبعاد أسباب أخرى.");
+  } else {
+    lines.push("لم يتم تسجيل نتائج تحاليل فعلية بعد — التحليل الحالي مبني على الأعراض المذكورة فقط.");
+  }
+
+  // 2) التحاليل المقترحة / تحاليل المتابعة
+  lines.push("", "---", (labResults.length ? "🔬 تحاليل إضافية مقترحة (حدد النهائي أنت):" : "🔬 التحاليل المقترحة (حدد النهائي أنت):"));
+  Object.keys(tests).forEach(function(t) { lines.push("• " + t); });
+
+  // 3) نظام غذائي
+  lines.push("", "---", "🥗 نظام غذائي مساعد:");
+  diet.forEach(function(d) { lines.push("• " + d); });
+
+  // 4) تعليمات دوائية عامة
+  lines.push("", "---", "💊 تعليمات دوائية عامة (استرشادية فقط):");
+  meds.forEach(function(m) { lines.push("• " + m); });
+  lines.push("(الجرعات النهائية ونوع الدواء بالتحديد من مسؤولية الطبيب المعالج فقط)");
+
+  // 5) نصائح طبية عامة
+  lines.push("", "---", "💡 نصائح طبية ونمط حياة:");
+  tips.forEach(function(t) { lines.push("• " + t); });
+
+  // 6) مواعيد تحاليل المتابعة الدورية
+  var fuKeys = Object.keys(followups);
+  if (fuKeys.length) {
+    lines.push("", "---", "📅 مواعيد تحاليل المتابعة المقترحة:");
+    fuKeys.forEach(function(k) { lines.push("• " + k + ": بعد " + followups[k]); });
+  }
+
+  // 7) تحذيرات
+  if (warnings.length) { lines.push("", "---", "⚠️ تنبيهات:"); warnings.forEach(function(w) { lines.push("• " + w); }); }
+
+  lines.push("", "---", "⚠️ هذا تفسير مساعد آلي وليس تشخيصاً نهائياً. القرار الطبي النهائي دائماً للطبيب المعالج.");
+  return lines.join("\n");
+}
+
+// يحوّل نص التحليل (الذكي أو AI الحقيقي) لأقسام ملونة بعناوين واضحة بدل كتلة نص واحدة رمادية
+function renderAnalysisHtml(analysisText) {
+  var headerEmojis = ["📋", "🩺", "🔬", "🥗", "💊", "💡", "📅", "⚠️"];
+  var colorMap = { "📋": "#7f1d1d", "🩺": "#7f1d1d", "🔬": "#0369a1", "🥗": "#15803d", "💊": "#a16207", "💡": "#0891b2", "📅": "#6d28d9", "⚠️": "#b91c1c" };
+  var bgMap = { "📋": "#fef2f2", "🩺": "#fef2f2", "🔬": "#eff6ff", "🥗": "#f0fdf4", "💊": "#fffbeb", "💡": "#ecfeff", "📅": "#f5f3ff", "⚠️": "#fef2f2" };
+
+  var lines = String(analysisText).replace(/</g, "&lt;").split("\n");
+  var sections = [];
+  var current = null;
+  lines.forEach(function(raw) {
+    var line = raw.trim();
+    if (!line || line === "---") return;
+    var emoji = headerEmojis.filter(function(e) { return line.indexOf(e) === 0; })[0];
+    if (emoji) {
+      current = { emoji: emoji, title: line, body: [] };
+      sections.push(current);
+    } else {
+      if (!current) { current = { emoji: "📋", title: "", body: [] }; sections.push(current); }
+      current.body.push(line);
+    }
+  });
+
+  return sections.map(function(sec) {
+    var color = colorMap[sec.emoji] || "#7f1d1d";
+    var bg = bgMap[sec.emoji] || "#f8fafc";
+    var bullets = sec.body.filter(function(l) { return l.indexOf("•") === 0 || l.indexOf("-") === 0; });
+    var paras = sec.body.filter(function(l) { return bullets.indexOf(l) === -1; });
+    var bodyHtml = "";
+    if (paras.length) bodyHtml += paras.map(function(p) { return '<p style="margin:2px 0 6px;font-size:12.5px;line-height:1.7;color:#333">' + p + '</p>'; }).join("");
+    if (bullets.length) bodyHtml += '<ul style="margin:2px 0;padding-inline-start:18px;font-size:12.5px;line-height:1.8;color:#333">' + bullets.map(function(b) { return '<li>' + b.replace(/^[•-]\s*/, "") + '</li>'; }).join("") + '</ul>';
+    return '<div style="margin:10px 0;border-right:4px solid ' + color + ';background:' + bg + ';padding:10px 14px;border-radius:0 8px 8px 0">' +
+      (sec.title ? '<h4 style="margin:0 0 6px;color:' + color + ';font-size:14px">' + sec.title + '</h4>' : "") +
+      bodyHtml +
+    '</div>';
+  }).join("");
+}
+
+function buildPatientReportHtml(r) {
+  var data = loadData();
+  var p = data.patients.find(function(x) { return x.id === r.patientId; });
+  var s = data.settings || {};
+  var q = (data.questionnaires || []).find(function(x) { return x.id === r.questionnaireId; })
+       || (typeof TEMPLATES !== "undefined" ? TEMPLATES.find(function(x) { return x.id === r.questionnaireId; }) : null);
+  var labels = {};
+  if (q && q.questions) q.questions.forEach(function(qq) { labels[qq.id] = qq.label; });
+
+  // رقم مرجعي ثابت للتقرير (يتولد مرة واحدة ويُحفظ مع الرد)
+  if (!r.reportId) {
+    r.reportId = "RM-" + new Date(r.submittedAt).toISOString().slice(0, 10).replace(/-/g, "") + "-" + r.id.slice(-5).toUpperCase();
+    var ridx = data.responses.findIndex(function(x) { return x.id === r.id; });
+    if (ridx !== -1) data.responses[ridx].reportId = r.reportId;
+    saveData(data);
+  }
+
+  // استخراج العمر والنوع (لو موجودين في الاستبيان) لعرضهما في رأس التقرير
+  var patientAge = "", patientGender = "";
+  if (q && q.questions) {
+    q.questions.forEach(function(qq) {
+      var v = r.answers[qq.id];
+      if (v === undefined || v === "" || v === null) return;
+      if (!patientAge && /العمر/.test(qq.label)) patientAge = String(v);
+      if (!patientGender && /الجنس/.test(qq.label)) patientGender = String(v);
+    });
+  }
+
+  var answersRows = "";
+  var keys = Object.keys(r.answers || {});
+  if (!keys.length) {
+    answersRows = '<tr><td colspan="2" style="padding:8px">لا توجد إجابات مسجلة</td></tr>';
+  } else {
+    keys.forEach(function(k, idx) {
+      var v = r.answers[k];
+      var val = Array.isArray(v) ? v.join("، ") : String(v);
+      var rowBg = idx % 2 === 0 ? "#fff" : "#fafafa";
+      answersRows += '<tr style="background:' + rowBg + '"><td style="padding:8px;border-bottom:1px solid #eee;color:#555;width:42%;vertical-align:top">' + (labels[k] || k) + '</td><td style="padding:8px;border-bottom:1px solid #eee;vertical-align:top">' + val + '</td></tr>';
+    });
+  }
+
+  // جدول نتائج التحاليل الفعلية (لو موجودة) بألوان توضّح القيم غير الطبيعية
+  var labSection = "";
+  if (r.labResults && r.labResults.length) {
+    var labRows = r.labResults.map(function(x) {
+      var rowBg = x.flag === "مرتفع" ? "#fee2e2" : x.flag === "منخفض" ? "#fef3c7" : "#fff";
+      var flagColor = x.flag === "مرتفع" ? "#b91c1c" : x.flag === "منخفض" ? "#b45309" : "#15803d";
+      return '<tr style="background:' + rowBg + '">' +
+        '<td style="padding:7px;border-bottom:1px solid #eee;font-weight:500">' + (x.name || "") + '</td>' +
+        '<td style="padding:7px;border-bottom:1px solid #eee;font-weight:bold">' + (x.value || "") + (x.unit ? " " + x.unit : "") + '</td>' +
+        '<td style="padding:7px;border-bottom:1px solid #eee;color:#666">' + (x.range || "—") + '</td>' +
+        '<td style="padding:7px;border-bottom:1px solid #eee;color:' + flagColor + ';font-weight:bold">' + (x.flag || "طبيعي") + '</td>' +
+      '</tr>';
+    }).join("");
+    labSection =
+      '<h3 style="color:#0369a1;margin:20px 0 8px;font-size:15px;border-bottom:2px solid #bae6fd;padding-bottom:5px">🧪 نتائج التحاليل الفعلية (من المعمل)</h3>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12.5px;direction:rtl;margin-bottom:6px">' +
+      '<thead><tr style="background:#f1f5f9;text-align:right"><th style="padding:7px">التحليل</th><th style="padding:7px">النتيجة</th><th style="padding:7px">المعدل الطبيعي</th><th style="padding:7px">الحالة</th></tr></thead>' +
+      '<tbody>' + labRows + '</tbody></table>';
+  }
+
+  var aiBlock = r.aiAnalysis
+    ? '<h3 style="color:#7f1d1d;margin:22px 0 10px;font-size:15px;border-bottom:2px solid #fecaca;padding-bottom:5px">🩺 التقرير الطبي الشامل</h3>' + renderAnalysisHtml(r.aiAnalysis)
+    : '<p style="color:#888;font-size:13px;margin-top:12px">(لم يتم تشغيل التحليل الشامل بعد)</p>';
+
+  var notesBlock = r.doctorNotes
+    ? '<h3 style="color:#7f1d1d;margin:18px 0 8px;font-size:15px;border-bottom:2px solid #fecaca;padding-bottom:5px">✍️ رأي الطبيب / التحاليل المحددة</h3><div style="font-size:13px;white-space:pre-wrap;line-height:1.7;padding:10px 14px;background:#f8fafc;border-radius:8px;border-right:4px solid #64748b">' + String(r.doctorNotes).replace(/</g, "&lt;") + '</div>'
+    : "";
+
+  var logoHtml = s.labLogo
+    ? '<img src="' + s.labLogo + '" style="width:56px;height:56px;object-fit:cover;border-radius:10px;display:block;margin:0 auto 6px" />'
+    : '';
+
+  var patientMetaBits = [];
+  if (patientAge) patientMetaBits.push('<strong>السن:</strong> ' + patientAge);
+  if (patientGender) patientMetaBits.push('<strong>النوع:</strong> ' + patientGender);
+  var patientMetaLine = patientMetaBits.length ? '<p style="font-size:13px;color:#555">' + patientMetaBits.join(' &nbsp;|&nbsp; ') + '</p>' : '';
+
+  var html =
+    '<div dir="rtl" style="font-family:\'Segoe UI\',Tahoma,Arial,sans-serif;color:#1e293b;padding:24px;background:#fff;min-height:400px;line-height:1.6">' +
+      '<div style="text-align:center;border-bottom:3px solid #7f1d1d;padding-bottom:14px;margin-bottom:18px">' +
+        logoHtml +
+        '<h1 style="color:#7f1d1d;margin:0;font-size:24px;letter-spacing:.3px">' + (s.labName || "معامل رامي مختار") + '</h1>' +
+        '<p style="margin:6px 0;color:#555;font-size:12.5px">' + (s.labAddress || "") + (s.labPhone ? " | هاتف: " + s.labPhone : "") + '</p>' +
+        '<p style="margin:6px 0;color:#fff;background:#7f1d1d;display:inline-block;padding:3px 14px;border-radius:20px;font-size:13px;font-weight:bold">التقرير الطبي الشامل للمريض</p>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;font-size:11.5px;color:#888;margin-bottom:8px">' +
+        '<span>رقم التقرير: <strong style="color:#7f1d1d">' + r.reportId + '</strong></span>' +
+        '<span>تاريخ الطباعة: ' + new Date().toLocaleDateString("ar-EG") + '</span>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:14px">' +
+        '<p style="font-size:14px;margin:0 0 4px"><strong>المريض:</strong> ' + (p ? p.name : "—") + ' &nbsp;|&nbsp; <strong>تاريخ الرد:</strong> ' + new Date(r.submittedAt).toLocaleDateString("ar-EG") + '</p>' +
+        (patientMetaLine || '') +
+        '<p style="font-size:14px;margin:4px 0 0"><strong>نوع الاستبيان:</strong> ' + (r.questionnaireTitle || "—") + '</p>' +
+      '</div>' +
+      '<h3 style="color:#7f1d1d;margin:18px 0 8px;font-size:15px;border-bottom:2px solid #fecaca;padding-bottom:5px">📝 إجابات المريض</h3>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12.5px;direction:rtl">' + answersRows + '</table>' +
+      labSection +
+      aiBlock +
+      notesBlock +
+      '<div style="margin-top:32px;padding-top:14px;border-top:2px solid #7f1d1d;font-size:12px;color:#444">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">' +
+          '<div>' +
+            '<p><strong>الطبيب المختص بالاستشارات:</strong> ' + (s.doctorName || "—") + (s.doctorSpec ? " (" + s.doctorSpec + ")" : "") + '</p>' +
+            '<p style="margin-top:8px;color:#888">هذا التقرير للمساعدة وليس بديلاً عن الاستشارة الطبية المباشرة.</p>' +
+          '</div>' +
+          '<div style="text-align:center;min-width:140px">' +
+            '<div style="border-bottom:1px solid #999;width:140px;height:36px"></div>' +
+            '<p style="margin-top:4px;font-size:11px;color:#888">توقيع / ختم المعمل</p>' +
+          '</div>' +
+        '</div>' +
+        '<p style="margin-top:10px">' + (s.labName || "معامل رامي مختار") + " — " + new Date().toLocaleString("ar-EG") + '</p>' +
+      '</div>' +
+    '</div>';
+
+  return { html: html, patientName: p && p.name };
+}
+
+// إنشاء PDF عن طريق نافذة طباعة المتصفح مباشرة (بدون html2canvas)
+// هذا أكثر ثباتاً على كل الأجهزة والمتصفحات، ويتجنب مشكلة "الصفحة البيضاء"
+// التي تحدث أحياناً مع أدوات تصوير الصفحة (خصوصاً على آيفون/الويب فيو داخل واتساب)
+function generatePatientPDF() {
+  if (!currentResponseId) {
+    alert("افتح رداً أولاً ثم أنشئ التقرير");
+    return;
+  }
+  var data = loadData();
+  var r = data.responses.find(function(x) { return x.id === currentResponseId; });
+  if (!r) {
+    alert("الرد غير موجود");
+    return;
+  }
+  var built = buildPatientReportHtml(r);
+
+  var w = window.open("", "_blank");
+  if (!w) {
+    alert("المتصفح منع فتح نافذة جديدة. اسمح بالنوافذ المنبثقة لهذا الموقع وحاول مرة أخرى.");
+    return;
+  }
+  var docHtml =
+    "<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='utf-8' />" +
+    "<title>تقرير_" + (built.patientName || "مريض") + "</title>" +
+    "<style>@page{margin:14mm;} body{margin:0;} @media print{ body{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }</style>" +
+    "</head><body>" + built.html + "</body></html>";
+  w.document.open();
+  w.document.write(docHtml);
+  w.document.close();
+
+  // ننتظر تحميل الصور (الشعار) قبل فتح نافذة الطباعة
+  function triggerPrint() {
+    w.focus();
+    w.print();
+  }
+  var imgs = w.document.images;
+  if (imgs && imgs.length) {
+    var remaining = imgs.length;
+    var done = false;
+    var finish = function() { if (done) return; done = true; setTimeout(triggerPrint, 150); };
+    Array.prototype.forEach.call(imgs, function(img) {
+      if (img.complete) { remaining--; if (remaining <= 0) finish(); }
+      else { img.onload = img.onerror = function() { remaining--; if (remaining <= 0) finish(); }; }
+    });
+    setTimeout(finish, 1500); // أمان في حال لم تُطلق أحداث التحميل
+  } else {
+    setTimeout(triggerPrint, 250);
+  }
+}
+
+// إرسال ملخص التقرير كنص مباشر عبر واتساب — بديل مضمون التوصيل لا يعتمد على PDF إطلاقاً
+function sendReportWhatsApp() {
+  if (!currentResponseId) {
+    alert("افتح رداً أولاً");
+    return;
+  }
+  var data = loadData();
+  var r = data.responses.find(function(x) { return x.id === currentResponseId; });
+  if (!r) return;
+  var p = data.patients.find(function(x) { return x.id === r.patientId; });
+  if (!p || !p.phone) { alert("لا يوجد رقم واتساب لهذا المريض"); return; }
+  var s = data.settings || {};
+
+  if (!r.reportId) {
+    r.reportId = "RM-" + new Date(r.submittedAt).toISOString().slice(0, 10).replace(/-/g, "") + "-" + r.id.slice(-5).toUpperCase();
+    var ridx = data.responses.findIndex(function(x) { return x.id === r.id; });
+    if (ridx !== -1) data.responses[ridx].reportId = r.reportId;
+    saveData(data);
+  }
+
+  var lines = [];
+  lines.push((s.labName || "معامل رامي مختار") + " — تقرير رقم " + r.reportId);
+  lines.push("المريض: " + p.name);
+  lines.push("الاستبيان: " + r.questionnaireTitle);
+  lines.push("التاريخ: " + new Date(r.submittedAt).toLocaleDateString("ar-EG"));
+  if (r.doctorNotes) { lines.push(""); lines.push("رأي الطبيب / التحاليل المطلوبة:"); lines.push(r.doctorNotes); }
+  if (r.aiAnalysis) {
+    lines.push("");
+    lines.push("التحليل المساعد:");
+    var a = r.aiAnalysis;
+    if (a.length > 900) a = a.slice(0, 900) + "…"; // حد أقصى تقريبي حتى لا يتجاوز طول رابط واتساب المسموح
+    lines.push(a);
+  }
+  if (s.doctorName) lines.push("\nالطبيب المختص: " + s.doctorName + (s.doctorSpec ? " (" + s.doctorSpec + ")" : ""));
+  lines.push("\nهذا الملخص للمساعدة وليس بديلاً عن الاستشارة الطبية المباشرة.");
+
+  var msg = lines.join("\n");
+  var phone = p.phone.replace(/\D/g, "");
+  if (phone.startsWith("0")) phone = "20" + phone.slice(1);
+  if (!phone.startsWith("20") && phone.length === 10) phone = "20" + phone;
+  window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg), "_blank");
+}
+
+var pendingLogoBase64 = null; // null = لا تغيير، "" = إزالة، أو نص base64 لصورة جديدة
+
+function loadSettingsUI() {
+  var s = loadData().settings;
+  document.getElementById("cfg-lab-name").value = s.labName || "";
+  document.getElementById("cfg-lab-address").value = s.labAddress || "";
+  document.getElementById("cfg-lab-phone").value = s.labPhone || "";
+  document.getElementById("cfg-doctor-name").value = s.doctorName || "";
+  document.getElementById("cfg-doctor-spec").value = s.doctorSpec || "";
+  document.getElementById("cfg-ai-key").value = s.aiKey || "";
+  var u = document.getElementById("cfg-supabase-url");
+  var k = document.getElementById("cfg-supabase-key");
+  if (u) u.value = s.supabaseUrl || "";
+  if (k) k.value = s.supabaseKey || "";
+  pendingLogoBase64 = null;
+  var preview = document.getElementById("cfg-logo-preview");
+  if (preview) {
+    if (s.labLogo) preview.innerHTML = '<img src="' + s.labLogo + '" class="w-full h-full object-cover" />';
+    else preview.textContent = (s.labName || "م").trim().charAt(0) || "م";
+  }
+  var fileInput = document.getElementById("cfg-logo-file");
+  if (fileInput) fileInput.value = "";
+}
+
+function onLogoFileChange(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (file.size > 800 * 1024) {
+    alert("الرجاء اختيار صورة أصغر من 800 كيلوبايت حتى يبقى البرنامج سريعاً.");
+    event.target.value = "";
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    pendingLogoBase64 = e.target.result;
+    var preview = document.getElementById("cfg-logo-preview");
+    if (preview) preview.innerHTML = '<img src="' + pendingLogoBase64 + '" class="w-full h-full object-cover" />';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  pendingLogoBase64 = "";
+  var s = loadData().settings;
+  var preview = document.getElementById("cfg-logo-preview");
+  if (preview) preview.textContent = (s.labName || "م").trim().charAt(0) || "م";
+  var fileInput = document.getElementById("cfg-logo-file");
+  if (fileInput) fileInput.value = "";
+}
+
+function saveSettings() {
+  var data = loadData();
+  var existingLogo = (data.settings && data.settings.labLogo) || "";
+  data.settings = {
+    labName: document.getElementById("cfg-lab-name").value.trim() || "معامل رامي مختار",
+    labAddress: document.getElementById("cfg-lab-address").value.trim(),
+    labPhone: document.getElementById("cfg-lab-phone").value.trim(),
+    doctorName: document.getElementById("cfg-doctor-name").value.trim(),
+    doctorSpec: document.getElementById("cfg-doctor-spec").value.trim(),
+    aiKey: document.getElementById("cfg-ai-key").value.trim(),
+    supabaseUrl: (document.getElementById("cfg-supabase-url") && document.getElementById("cfg-supabase-url").value.trim()) || "",
+    supabaseKey: (document.getElementById("cfg-supabase-key") && document.getElementById("cfg-supabase-key").value.trim()) || "",
+    labLogo: pendingLogoBase64 !== null ? pendingLogoBase64 : existingLogo
+  };
+  saveData(data);
+  pendingLogoBase64 = null;
+  initSupabase();
+  updateHeaderBranding();
+  alert("تم حفظ الإعدادات");
+}
+
+function exportBackup() {
+  var data = loadData();
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "نسخة_احتياطية_" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+}
+
+function importBackup(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (!confirm("سيتم استبدال كل البيانات الحالية على هذا الجهاز بالنسخة المستوردة. هل أنت متأكد؟")) {
+    event.target.value = "";
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var parsed = JSON.parse(e.target.result);
+      if (!parsed || typeof parsed !== "object") throw new Error("ملف غير صالح");
+      if (!parsed.patients) parsed.patients = [];
+      if (!parsed.responses) parsed.responses = [];
+      if (!parsed.settings) parsed.settings = Object.assign({}, DEFAULT_SETTINGS);
+      if (!parsed.questionnaires || !parsed.questionnaires.length) parsed.questionnaires = TEMPLATES;
+      saveData(parsed);
+      alert("تم استيراد النسخة الاحتياطية بنجاح.");
+      initSupabase();
+      showView("dashboard");
+    } catch (err) {
+      alert("فشل الاستيراد: الملف غير صالح.\n" + (err.message || err));
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
+var sbClient = null;
+function initSupabase() {
+  sbClient = null;
+  try {
+    var s = loadData().settings;
+    // نستخدم إعدادات المستخدم لو دخلها يدوياً، وإلا نرجع تلقائياً لبيانات المشروع المثبّتة
+    // بهذا الشكل أي جهاز (جهازك أو جهاز المريض) يتصل بنفس قاعدة البيانات المشتركة من أول تحميل
+    var url = (s.supabaseUrl || "").trim() || BUILTIN_SUPABASE_URL;
+    var key = (s.supabaseKey || "").trim() || BUILTIN_SUPABASE_KEY;
+    if (url && key && window.supabase) {
+      sbClient = window.supabase.createClient(url, key);
+    }
+  } catch (e) { console.warn(e); }
+  return sbClient;
+}
+function isCloud() { return !!sbClient; }
+
+async function testSupabase() {
+  saveSettings();
+  if (!initSupabase()) {
+    alert("أدخل رابط Supabase والمفتاح أولاً ثم احفظ.");
+    return;
+  }
+  try {
+    var res = await sbClient.from("patients").select("id").limit(1);
+    if (res.error) throw res.error;
+    alert("✅ الاتصال ناجح! الجداول تعمل.");
+    await syncFromCloud();
+    showView("dashboard");
+  } catch (e) {
+    alert("فشل الاتصال أو الجداول غير موجودة.\n\nتأكد أنك نفّذت كود SQL للجداول في Supabase.\n\n" + (e.message || e));
+  }
+}
+
+async function syncFromCloud() {
+  if (!isCloud()) return;
+  try {
+    var data = loadData();
+    var [pRes, rRes] = await Promise.all([
+      sbClient.from("patients").select("*").order("created_at", { ascending: false }),
+      sbClient.from("responses").select("*").order("submitted_at", { ascending: false })
+    ]);
+    if (pRes.error) throw pRes.error;
+    if (rRes.error) throw rRes.error;
+    data.patients = (pRes.data || []).map(function(row) {
+      return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone || "",
+        status: row.status || "new",
+        notes: row.notes || "",
+        createdAt: row.created_at,
+        updatedAt: row.updated_at || row.created_at
+      };
+    });
+    data.responses = (rRes.data || []).map(function(row) {
+      return {
+        id: row.id,
+        patientId: row.patient_id,
+        questionnaireId: row.questionnaire_id,
+        questionnaireTitle: row.questionnaire_title,
+        answers: row.answers || {},
+        submittedAt: row.submitted_at,
+        doctorNotes: row.doctor_notes || "",
+        aiAnalysis: row.ai_analysis || ""
+      };
+    });
+    saveData(data);
+  } catch (e) {
+    console.error("sync error", e);
+    alert("خطأ في جلب البيانات من السحابة: " + (e.message || e));
+  }
+}
+
+async function cloudUpsertPatient(patient) {
+  if (!isCloud()) return;
+  await sbClient.from("patients").upsert({
+    id: patient.id,
+    name: patient.name,
+    phone: patient.phone || null,
+    status: patient.status || "new",
+    notes: patient.notes || null,
+    created_at: patient.createdAt,
+    updated_at: patient.updatedAt || new Date().toISOString()
+  });
+}
+
+async function cloudInsertResponse(response) {
+  if (!isCloud()) return;
+  await sbClient.from("responses").insert({
+    id: response.id,
+    patient_id: response.patientId,
+    questionnaire_id: response.questionnaireId,
+    questionnaire_title: response.questionnaireTitle,
+    answers: response.answers,
+    submitted_at: response.submittedAt,
+    doctor_notes: response.doctorNotes || null,
+    ai_analysis: response.aiAnalysis || null
+  });
+}
+
+async function cloudUpdateResponse(response) {
+  if (!isCloud()) return;
+  await sbClient.from("responses").update({
+    doctor_notes: response.doctorNotes || null,
+    ai_analysis: response.aiAnalysis || null
+  }).eq("id", response.id);
+}
+
+async function cloudUpdatePatient(patient) {
+  if (!isCloud()) return;
+  await sbClient.from("patients").update({
+    notes: patient.notes || null,
+    status: patient.status,
+    updated_at: patient.updatedAt || new Date().toISOString()
+  }).eq("id", patient.id);
+}
+
+function renderQuestionnaires() {
+  var data = loadData();
+  document.getElementById("q-list").innerHTML = data.questionnaires.map(function(q) {
+    return '<div class="card p-5"><h2 class="font-bold text-lg text-brand-800">' + q.title + '</h2><p class="text-sm text-slate-500 mt-1">' + (q.description || "") + '</p><p class="text-xs text-slate-400 mt-2">' + q.questions.length + ' أسئلة • ' + (q.category === "feedback" ? "تقييم خدمة" : q.category === "symptoms" ? "أعراض / اقتراح تحاليل" : "طبي") + '</p><details class="mt-3"><summary class="cursor-pointer text-sm text-brand-700 font-medium">عرض الأسئلة</summary><ul class="mt-2 text-sm text-slate-700 space-y-1 pr-4">' + q.questions.map(function(qq, i) { return '<li>' + (i + 1) + '. ' + qq.label + '</li>'; }).join("") + '</ul></details></div>';
+  }).join("");
+}
+
+function openForm(qId, patientId) {
+  var data = loadData();
+  // تأكد من وجود القوالب دائماً
+  if (!data.questionnaires || !data.questionnaires.length) {
+    data.questionnaires = TEMPLATES;
+    saveData(data);
+  }
+  var q = data.questionnaires.find(function(x) { return x.id === qId; });
+  if (!q) {
+    // جرب من TEMPLATES مباشرة
+    q = TEMPLATES.find(function(x) { return x.id === qId; });
+  }
+  if (!q) {
+    alert("الاستبيان غير موجود. تأكد أن اللينك صحيح.");
+    showView("dashboard");
+    return;
+  }
+
+  var params = new URLSearchParams(location.search);
+  var patientNameFromUrl = params.get("patientName") || "";
+  var p = data.patients.find(function(x) { return x.id === patientId; });
+
+  // لو المريض مش موجود محلياً (هاتف المريض) أنشئ سجلاً مؤقتاً من اللينك
+  if (!p) {
+    p = {
+      id: patientId,
+      name: patientNameFromUrl || "مريض",
+      phone: "",
+      status: "new",
+      notes: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    data.patients.unshift(p);
+    saveData(data);
+  }
+
+  var modal = document.getElementById("modal-add-patient");
+  if (modal) modal.classList.add("hidden");
+
+  formContext = { qId: qId, patientId: patientId };
+  document.getElementById("form-lab-name").textContent = data.settings.labName || "معامل رامي مختار";
+  var formLogoBox = document.getElementById("form-logo-box");
+  if (formLogoBox) {
+    if (data.settings.labLogo) formLogoBox.innerHTML = '<img src="' + data.settings.labLogo + '" class="w-full h-full object-cover" />';
+    else formLogoBox.textContent = (data.settings.labName || "م").trim().charAt(0) || "م";
+  }
+  document.getElementById("form-title").textContent = q.title;
+  document.getElementById("form-desc").textContent = q.description || "";
+  document.getElementById("form-patient").textContent = "المريض: " + (p.name || patientNameFromUrl || "");
+
+  var form = document.getElementById("patient-form");
+  form.innerHTML = "";
+  form.onsubmit = function(ev) { submitForm(ev); return false; };
+
+  q.questions.forEach(function(qq) {
+    var wrap = document.createElement("div");
+    wrap.className = "space-y-2 mb-2";
+    wrap.setAttribute("data-question", qq.id);
+
+    var title = document.createElement("p");
+    title.className = "font-medium text-slate-800";
+    title.innerHTML = qq.label + (qq.required ? ' <span class="text-red-500">*</span>' : "");
+    wrap.appendChild(title);
+
+    if (qq.type === "text") {
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.setAttribute("data-qid", qq.id);
+      inp.className = "w-full border border-brand-200 rounded-xl px-3 py-3 text-base";
+      wrap.appendChild(inp);
+    } else if (qq.type === "textarea") {
+      var ta = document.createElement("textarea");
+      ta.rows = 3;
+      ta.setAttribute("data-qid", qq.id);
+      ta.className = "w-full border border-brand-200 rounded-xl px-3 py-3 text-base";
+      wrap.appendChild(ta);
+    } else if (qq.type === "single" && qq.options) {
+      var box = document.createElement("div");
+      box.className = "space-y-1";
+      qq.options.forEach(function(o) {
+        var lab = document.createElement("label");
+        lab.className = "flex items-center gap-3 cursor-pointer py-2 px-3 rounded-lg hover:bg-brand-50 active:bg-brand-100";
+        var r = document.createElement("input");
+        r.type = "radio";
+        r.name = qq.id;
+        r.value = o;
+        r.setAttribute("data-qid", qq.id);
+        r.className = "w-5 h-5 shrink-0";
+        r.style.accentColor = "#7f1d1d";
+        var sp = document.createElement("span");
+        sp.className = "text-base";
+        sp.textContent = o;
+        lab.appendChild(r);
+        lab.appendChild(sp);
+        box.appendChild(lab);
+      });
+      wrap.appendChild(box);
+    } else if (qq.type === "multiple" && qq.options) {
+      var box2 = document.createElement("div");
+      box2.className = "space-y-1";
+      qq.options.forEach(function(o) {
+        var lab = document.createElement("label");
+        lab.className = "flex items-center gap-3 cursor-pointer py-2 px-3 rounded-lg hover:bg-brand-50 active:bg-brand-100";
+        var c = document.createElement("input");
+        c.type = "checkbox";
+        c.value = o;
+        c.setAttribute("data-qid", qq.id);
+        c.setAttribute("data-multi", "1");
+        c.className = "w-5 h-5 shrink-0 rounded";
+        c.style.accentColor = "#7f1d1d";
+        var sp = document.createElement("span");
+        sp.className = "text-base";
+        sp.textContent = o;
+        lab.appendChild(c);
+        lab.appendChild(sp);
+        box2.appendChild(lab);
+      });
+      wrap.appendChild(box2);
+    } else if (qq.type === "scale") {
+      var min = qq.scaleMin || 1, max = qq.scaleMax || 10, mid = Math.floor((min + max) / 2);
+      var row = document.createElement("div");
+      row.className = "flex items-center gap-3";
+      var sMin = document.createElement("span");
+      sMin.className = "text-sm text-slate-500";
+      sMin.textContent = String(min);
+      var range = document.createElement("input");
+      range.type = "range";
+      range.min = min;
+      range.max = max;
+      range.value = mid;
+      range.setAttribute("data-qid", qq.id);
+      range.className = "flex-1";
+      range.style.accentColor = "#7f1d1d";
+      range.style.height = "28px";
+      var sMax = document.createElement("span");
+      sMax.className = "text-sm text-slate-500";
+      sMax.textContent = String(max);
+      var sVal = document.createElement("span");
+      sVal.className = "font-bold text-brand-700 w-8 text-center text-lg";
+      sVal.textContent = String(mid);
+      range.oninput = function() { sVal.textContent = range.value; };
+      row.appendChild(sMin);
+      row.appendChild(range);
+      row.appendChild(sMax);
+      row.appendChild(sVal);
+      wrap.appendChild(row);
+    } else if (qq.type === "yesno") {
+      var box3 = document.createElement("div");
+      box3.className = "flex gap-3";
+      ["نعم", "لا"].forEach(function(o) {
+        var lab = document.createElement("label");
+        lab.className = "flex items-center gap-2 cursor-pointer py-3 px-5 rounded-xl border border-brand-200 hover:bg-brand-50 active:bg-brand-100";
+        var r = document.createElement("input");
+        r.type = "radio";
+        r.name = qq.id;
+        r.value = o;
+        r.setAttribute("data-qid", qq.id);
+        r.className = "w-5 h-5";
+        r.style.accentColor = "#7f1d1d";
+        var sp = document.createElement("span");
+        sp.className = "text-base font-medium";
+        sp.textContent = o;
+        lab.appendChild(r);
+        lab.appendChild(sp);
+        box3.appendChild(lab);
+      });
+      wrap.appendChild(box3);
+    }
+    form.appendChild(wrap);
+  });
+
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "w-full btn-brand py-4 rounded-xl font-medium text-lg shadow-sm mt-4";
+  btn.textContent = "إرسال الإجابات";
+  btn.onclick = function() { submitForm({ preventDefault: function() {} }); };
+  form.appendChild(btn);
+
+  showView("form");
+  window.scrollTo(0, 0);
+}
+
+function submitForm(e) {
+  e.preventDefault();
+  var data = loadData();
+  var q = data.questionnaires.find(function(x) { return x.id === formContext.qId; });
+  if (!q) return;
+  var answers = {};
+  try {
+    q.questions.forEach(function(qq) {
+      if (qq.type === "multiple") answers[qq.id] = Array.prototype.map.call(document.querySelectorAll('[data-qid="' + qq.id + '"][data-multi]:checked'), function(c) { return c.value; });
+      else if (qq.type === "single" || qq.type === "yesno") { var sel = document.querySelector('[data-qid="' + qq.id + '"]:checked'); answers[qq.id] = sel ? sel.value : ""; }
+      else if (qq.type === "scale") { var inp = document.querySelector('[data-qid="' + qq.id + '"]'); answers[qq.id] = inp ? Number(inp.value) : 5; }
+      else { var inp2 = document.querySelector('[data-qid="' + qq.id + '"]'); answers[qq.id] = inp2 ? inp2.value : ""; }
+      if (qq.required) {
+        var v = answers[qq.id];
+        if (v === undefined || v === "" || (Array.isArray(v) && !v.length)) { alert("الرجاء الإجابة على: " + qq.label); throw new Error("required"); }
+      }
+    });
+  } catch (err) { if (err.message === "required") return; throw err; }
+  var response = { id: genId("res"), patientId: formContext.patientId, questionnaireId: formContext.qId, questionnaireTitle: q.title, answers: answers, submittedAt: new Date().toISOString() };
+  data.responses.unshift(response);
+  var pi = data.patients.findIndex(function(p) { return p.id === formContext.patientId; });
+  if (pi !== -1) { data.patients[pi].status = "followup"; data.patients[pi].updatedAt = new Date().toISOString(); }
+  saveData(data);
+  var patientObj = data.patients.find(function(p) { return p.id === formContext.patientId; });
+  showView("form-success");
+  Promise.resolve()
+    .then(function() { return patientObj ? cloudUpsertPatient(patientObj) : null; })
+    .then(function() { return cloudInsertResponse(response); })
+    .then(function() { if (pi !== -1) return cloudUpdatePatient(data.patients[pi]); })
+    .then(function() {
+      console.log("تم حفظ الرد في السحابة بنجاح، id:", response.id);
+    })
+    .catch(function(e) {
+      console.warn(e);
+      // رسالة تشخيصية مؤقتة: تُظهر سبب فشل المزامنة الحقيقي بدل ما يختفي بصمت
+      var box = document.getElementById("form-sync-status");
+      if (box) {
+        box.classList.remove("hidden");
+        box.innerHTML = "⚠️ ملاحظة تقنية (مؤقتة للتشخيص): تم حفظ الرد على هذا الجهاز، لكن حدث خطأ أثناء مزامنته مع السحابة:<br><code style='word-break:break-all'>" + String((e && (e.message || e.error_description || e.hint || JSON.stringify(e))) || e).replace(/</g, "&lt;") + "</code>";
+      }
+    });
+}
+
+function init() {
+  try {
+    // ضمان وجود القوالب من أول تحميل
+    var d = loadData();
+    if (!d.questionnaires || !d.questionnaires.length) {
+      d.questionnaires = TEMPLATES;
+      saveData(d);
+    }
+  } catch (e) { console.warn(e); }
+
+  initSupabase();
+  var params = new URLSearchParams(location.search);
+  var formQ = params.get("form"), formP = params.get("patientId");
+
+  function openPatientForm() {
+    try {
+      openForm(formQ, formP);
+    } catch (err) {
+      console.error(err);
+      alert("حدث خطأ أثناء فتح الاستبيان: " + (err.message || err));
+      showView("dashboard");
+    }
+  }
+
+  if (formQ && formP) {
+    if (isCloud()) {
+      syncFromCloud().then(openPatientForm).catch(openPatientForm);
+    } else {
+      openPatientForm();
+    }
+  } else {
+    if (isCloud()) {
+      syncFromCloud().then(function() { showView("dashboard"); }).catch(function() { showView("dashboard"); });
+    } else {
+      showView("dashboard");
+    }
+  }
+}
+init();
+</script>
+</body>
+</html>
